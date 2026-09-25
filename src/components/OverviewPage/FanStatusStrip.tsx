@@ -1,7 +1,15 @@
+import { useMemo } from "react";
 import { FAN_SERIES_ID } from "../../constants";
 import type { FleetFanStatus } from "../../api/types";
-import { useMetricsHistoryTail } from "../../hooks/metricsStore";
+import { useTimedMetricsHistory } from "../../hooks/metricsStore";
 import { Sparkline } from "../ui/Sparkline";
+
+/**
+ * Fan RPM trend window. The default sparkline tail (30 samples) is tuned for
+ * the 2 s WS poll; the fan daemon polls every ~5 s, so that would show under
+ * three minutes. Window the timed series instead — 30 minutes of trend.
+ */
+const FAN_SPARKLINE_WINDOW_MS = 30 * 60_000;
 
 function num(value: number | null): string {
   return value == null ? "—" : String(Math.round(value));
@@ -13,7 +21,12 @@ function pct(value: number | null): string {
 
 /** Overview strip for a shared rack fan driven by an external fan daemon. */
 export function FanStatusStrip({ fan }: { fan: FleetFanStatus }) {
-  const rpmTail = useMetricsHistoryTail(FAN_SERIES_ID, "rpm");
+  const series = useTimedMetricsHistory(FAN_SERIES_ID, "rpm");
+  const lastAt = series.length > 0 ? series[series.length - 1].at : 0;
+  const rpmTrend = useMemo(
+    () => series.filter((s) => s.at >= lastAt - FAN_SPARKLINE_WINDOW_MS).map((s) => s.value),
+    [series, lastAt]
+  );
   const critical = fan.failsafe || fan.fanOk === false;
   const dotClass =
     !fan.online || critical
@@ -51,7 +64,7 @@ export function FanStatusStrip({ fan }: { fan: FleetFanStatus }) {
             <div className="text-[10px] text-muted">RPM</div>
             <strong className="font-tabular text-sm">{num(fan.rpm)}</strong>
           </div>
-          <Sparkline data={rpmTail} />
+          <Sparkline data={rpmTrend} width={160} height={28} />
         </div>
         <div>
           <div className="text-[10px] text-muted">PWM</div>
