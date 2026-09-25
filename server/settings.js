@@ -33,6 +33,8 @@ const DEFAULTS = Object.freeze({
    * does not want it can turn it off here (see the README's settings table).
    */
   benchShareImage: true,
+  /** Overview grid card columns on large screens (1–6; 3 = legacy layout). */
+  overviewColumns: 3,
 });
 
 /** @type {typeof DEFAULTS} */
@@ -63,6 +65,10 @@ function _clampSettings(settings) {
   // Ensure density is valid
   if (s.density !== "comfortable" && s.density !== "compact") {
     s.density = DEFAULTS.density;
+  }
+  // Ensure overviewColumns is an integer within 1–6
+  if (!Number.isInteger(s.overviewColumns) || s.overviewColumns < 1 || s.overviewColumns > 6) {
+    s.overviewColumns = DEFAULTS.overviewColumns;
   }
   return s;
 }
