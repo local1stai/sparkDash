@@ -22,9 +22,14 @@ const LLM_DAILY_JSON_PATH =
 const FLEET_ENERGY_JSON_PATH =
   process.env.FLEET_ENERGY_JSON_PATH || path.join(ROOT, "config", "fleet-energy.json");
 
+// ─── Fleet fan daemon (optional) ─────────────────────────
+/** Optional fleet fan daemon status URL (shared rack fan). Empty = feature hidden. */
+const FAN_STATUS_URL = (process.env.FAN_STATUS_URL || "").trim();
+
 // ─── LLM / Comfy probe timeouts ──────────────────────────
 const LLM_PROBE_TIMEOUT_MS = 3000;
 const COMFY_PROBE_TIMEOUT_MS = parseInt(process.env.COMFY_PROBE_TIMEOUT_MS || "3000", 10);
+const FAN_PROBE_TIMEOUT_MS = parseInt(process.env.FAN_PROBE_TIMEOUT_MS || "2500", 10);
 const TAILSCALE_PROBE_TIMEOUT_MS = parseInt(process.env.TAILSCALE_PROBE_TIMEOUT_MS || "8000", 10);
 const SSH_CONNECT_TIMEOUT = 5; // seconds
 // Reuse one authenticated SSH connection per Spark instead of dialing a new one
@@ -44,6 +49,8 @@ const POLL_INTERVAL_NETWORK = parseInt(process.env.POLL_INTERVAL_NETWORK || "200
 const POLL_INTERVAL_STORAGE = parseInt(process.env.POLL_INTERVAL_STORAGE || "5000", 10);
 const POLL_INTERVAL_LLM = parseInt(process.env.POLL_INTERVAL_LLM || "2000", 10);
 const POLL_INTERVAL_COMFY = parseInt(process.env.POLL_INTERVAL_COMFY || "2000", 10);
+// Fleet fan daemon status poll (FAN_STATUS_URL); hidden entirely when unset.
+const POLL_INTERVAL_FAN = parseInt(process.env.POLL_INTERVAL_FAN || "5000", 10);
 // Tailnet membership changes slowly; each poll is an SSH round-trip.
 const POLL_INTERVAL_TAILSCALE = parseInt(process.env.POLL_INTERVAL_TAILSCALE || "30000", 10);
 // Kernel journal scan for NV_ERR_NO_MEMORY — not on the 2s GPU loop.
@@ -110,8 +117,10 @@ export {
   SECRETS_KEY_PATH,
   LLM_DAILY_JSON_PATH,
   FLEET_ENERGY_JSON_PATH,
+  FAN_STATUS_URL,
   LLM_PROBE_TIMEOUT_MS,
   COMFY_PROBE_TIMEOUT_MS,
+  FAN_PROBE_TIMEOUT_MS,
   TAILSCALE_PROBE_TIMEOUT_MS,
   SSH_CONNECT_TIMEOUT,
   SSH_MULTIPLEX,
@@ -122,6 +131,7 @@ export {
   POLL_INTERVAL_STORAGE,
   POLL_INTERVAL_LLM,
   POLL_INTERVAL_COMFY,
+  POLL_INTERVAL_FAN,
   POLL_INTERVAL_TAILSCALE,
   POLL_INTERVAL_NVERR,
   POLL_INTERVAL_BANDWIDTH,
