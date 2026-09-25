@@ -23,13 +23,12 @@ function fan(overrides: Partial<FleetFanStatus> = {}): FleetFanStatus {
 }
 
 describe("FanStatusStrip states", () => {
-  it("shows RPM, duty, PWM, and online count for a healthy daemon", () => {
+  it("shows RPM, duty, and PWM for a healthy daemon", () => {
     const { container } = render(<FanStatusStrip fan={fan()} />);
     expect(container.textContent).toContain("Fleet Fan");
     expect(container.textContent).toContain("1320");
     expect(container.textContent).toContain("37%");
     expect(container.textContent).toContain("35% → 37%");
-    expect(container.textContent).toContain("8");
     expect(container.textContent).toContain("auto");
   });
 

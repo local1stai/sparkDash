@@ -63,10 +63,6 @@ export function FanStatusStrip({ fan }: { fan: FleetFanStatus }) {
             {pct(fan.fanPctTarget)} → {pct(fan.fanPctSent)}
           </strong>
         </div>
-        <div>
-          <div className="text-[10px] text-muted">Sparks online</div>
-          <strong className="font-tabular text-sm">{num(fan.sparksOnline)}</strong>
-        </div>
       </div>
       {fan.failsafe && (
         <p className="mt-2 text-xs text-danger">
