@@ -355,6 +355,7 @@ function DashboardApp() {
               showFleetExceptions={settings?.showFleetExceptions ?? false}
               showOverviewSearch={settings?.showOverviewSearch ?? false}
               temperatureUnit={settings?.temperatureUnit ?? "celsius"}
+              overviewColumns={settings?.overviewColumns ?? 3}
               onSelectSpark={navigate}
             />
           ) : displayActive ? (

@@ -396,6 +396,7 @@ Gear icon in the header, or `GET`/`PUT` `/api/settings`:
 | Auto-hide offline | false | Hide offline Sparks on Overview |
 | Hide worker nodes | false | Hide Worker-role Sparks from Overview and the tab bar |
 | Temperature unit | Celsius | Display GPU temperature in °C or °F |
+| Overview columns | 3 | Spark cards per row on large screens (1–6; tablets stay 2, phones 1) |
 
 ### Environment variables
 
