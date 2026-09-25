@@ -29,6 +29,12 @@ const DEFAULTS = Object.freeze({
   showOverviewSearch: false,
   /** Overview grid card columns on large screens (1–6; 3 = legacy layout). */
   overviewColumns: 3,
+  /**
+   * Benchmark dialogs offer the share-card format. On by default: the extra
+   * control is one caret next to a button that already copies, and anyone who
+   * does not want it can turn it off here (see the README's settings table).
+   */
+  benchShareImage: true,
 });
 
 /** @type {typeof DEFAULTS} */

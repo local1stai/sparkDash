@@ -123,6 +123,8 @@ export class LlmProbe {
     this._lastDetectAt = 0;
     /** @type {{ value: number, liveUntil: number } | null} */
     this._sglangStickyTps = null;
+    /** Latest gen_throughput from /v1/loads, if that payload carried one. */
+    this._sglangLoadGenTps = null;
     /** Whether this poll's /server_info carried total_input/output_tokens. */
     this._sglangTotalsPolled = false;
     /**
@@ -268,6 +270,7 @@ export class LlmProbe {
     this.lastTtftCount = null;
     this.lastIterSum = null;
     this._sglangStickyTps = null;
+    this._sglangLoadGenTps = null;
   }
 
   /** Note auth from an HTTP status on an unauthenticated probe request. */
@@ -453,6 +456,7 @@ export class LlmProbe {
     // Model info from /v1/models — 401/403 means protected; other failure = down
     let modelsOk = false;
     let owned = null;
+    let servedModelId = null;
     try {
       const modelsRes = await this._fetch(`${this.baseUrl}/v1/models`);
       const auth = this._noteAuthStatus(modelsRes.status);
@@ -463,7 +467,8 @@ export class LlmProbe {
         modelsOk = true;
         const modelsData = await modelsRes.json();
         const model = modelsData?.data?.[0];
-        this.modelId = normalizeModelId(model?.id || null);
+        servedModelId = normalizeModelId(model?.id || null);
+        this.modelId = servedModelId;
         // Drop HF hub cache paths from modelPath if /v1/models id was a cache dir
         if (isHfHubCachePath(model?.id)) this.modelPath = null;
         // ds4-server uses context_length; vLLM uses max_model_len
@@ -539,6 +544,9 @@ export class LlmProbe {
         /* metrics optional */
       }
       await this._enrichSglangModelInfo();
+      // Native SGLang endpoints expose the storage path (often just `/model`).
+      // Keep that as modelPath, but show/use the client-facing served model ID.
+      if (servedModelId) this.modelId = servedModelId;
       return this._getSnapshot();
     }
 
@@ -1001,6 +1009,7 @@ export class LlmProbe {
    * num_reqs is running + waiting.
    */
   async _probeSglangLoad() {
+    this._sglangLoadGenTps = null;
     for (const path of ["/v1/loads", "/get_load"]) {
       try {
         const res = await this._fetch(`${this.baseUrl}${path}`);
@@ -1024,7 +1033,12 @@ export class LlmProbe {
     let running = 0;
     let waiting = 0;
     let saw = false;
+    let loadGen = null;
     for (const row of rows) {
+      const gen = Number(row.gen_throughput);
+      if (Number.isFinite(gen) && gen >= 0) {
+        loadGen = loadGen == null ? gen : Math.max(loadGen, gen);
+      }
       const wait = Number(row.num_waiting_reqs);
       const runDirect = Number(row.num_running_reqs);
       const total = Number(row.num_reqs);
@@ -1042,6 +1056,7 @@ export class LlmProbe {
       }
     }
     if (!saw) return false;
+    this._sglangLoadGenTps = loadGen;
     this.requestsRunning = running;
     this.requestsWaiting = waiting;
     this.slotsActive = Math.round(running);
@@ -1144,6 +1159,23 @@ export class LlmProbe {
   }
 
   /**
+   * Live decode tok/s. Current SGLang builds publish gen_throughput while a
+   * request runs, and only then add the whole completion to
+   * generation_tokens_total. Differencing that counter stays at 0 for the
+   * whole decode and spikes once when the request ends.
+   * Max, not sum: tensor-parallel ranks repeat the same gauge.
+   * @param {string} txt
+   * @returns {number | null}
+   */
+  _sglangGenGauge(txt) {
+    const prom =
+      this._getPromMetricMax(txt, "sglang:gen_throughput") ??
+      this._getPromMetricMax(txt, "sglang_gen_throughput");
+    if (prom != null) return prom;
+    return this._sglangLoadGenTps;
+  }
+
+  /**
    * Apply SGLang Prometheus /metrics (--enable-metrics).
    * Supports both `sglang:` and `sglang_` prefixes.
    * @param {string} txt
@@ -1156,10 +1188,15 @@ export class LlmProbe {
     const prompt =
       this._getPromMetric(txt, "sglang:prompt_tokens_total") ??
       this._getPromMetric(txt, "sglang_prompt_tokens_total");
+    const running =
+      this._getPromMetric(txt, "sglang:num_running_reqs") ??
+      this._getPromMetric(txt, "sglang_num_running_reqs");
+    if (running != null) {
+      this.requestsRunning = running;
+      this.slotsActive = Math.round(running);
+    }
     if (gen == null) {
-      const gauge =
-        this._getPromMetric(txt, "sglang:gen_throughput") ??
-        this._getPromMetric(txt, "sglang_gen_throughput");
+      const gauge = this._sglangGenGauge(txt);
       if (gauge != null) {
         this.generationTps = Math.max(0, Math.round(gauge * 100) / 100);
       }
@@ -1169,9 +1206,20 @@ export class LlmProbe {
     // Difference only against our own baseline; after a server-info hand-off
     // the first sample seeds instead of reporting the gap between two series.
     const ownsBaseline = this._sglangTokenSource !== "server_info";
-    if (ownsBaseline && dtSec > 0 && dtSec < 10) {
+    const canDiff = ownsBaseline && dtSec > 0 && dtSec < 10;
+    if (canDiff) {
       const deltaOut = gen - this.lastTokenCounts.output;
-      this.generationTps = Math.max(0, Math.round((deltaOut / dtSec) * 100) / 100);
+      const gauge = this._sglangGenGauge(txt);
+      const busy = (running != null && running > 0) || this._sglangInflight();
+      if (gauge != null && busy) {
+        this.generationTps = Math.max(0, Math.round(gauge * 100) / 100);
+      } else if (gauge != null) {
+        // Idle, or the completion just landed in the counter. The gauge already
+        // carried the live rate; the counter jump is not another tok/s sample.
+        this.generationTps = 0;
+      } else {
+        this.generationTps = Math.max(0, Math.round((deltaOut / dtSec) * 100) / 100);
+      }
       if (prompt != null) {
         const deltaIn = prompt - this.lastTokenCounts.input;
         this._setPrefillTps(deltaIn / dtSec, deltaOut > 0);
@@ -1186,14 +1234,6 @@ export class LlmProbe {
     if (prompt != null) this.lastTokenCounts.input = prompt;
     this._sglangTokenSource = "prometheus";
     this.totalOutputTokens = gen;
-
-    const running =
-      this._getPromMetric(txt, "sglang:num_running_reqs") ??
-      this._getPromMetric(txt, "sglang_num_running_reqs");
-    if (running != null) {
-      this.requestsRunning = running;
-      this.slotsActive = Math.round(running);
-    }
 
     const cached = this._sglangCachedTokens(txt);
     if (cached != null && prompt != null) {
