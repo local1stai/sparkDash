@@ -3,8 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Patched for this x86_64 host (upstream targets arm64 DGX Spark).
+      # The multi-arch node:22 image and pure-JS deps build natively on amd64.
       platforms:
-        - linux/arm64
+        - linux/amd64
       args:
         # Frontend metrics-history retention (hours). Rebuild after changing.
         VITE_HISTORY_HOURS: ${VITE_HISTORY_HOURS:-8}
@@ -31,9 +33,8 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/host/root:ro
-      # Mount nvidia-smi + driver libs (fallback if nsenter host path fails)
-      - /usr/bin/nvidia-smi:/usr/bin/nvidia-smi:ro
-      - /usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1:/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1:ro
+      # nvidia-smi / libnvidia-ml mounts removed: no NVIDIA stack on this host
+      # (x86_64 LXC — remote Sparks are monitored over SSH instead).
       # Config + encrypted secrets (passwords survive restarts)
       - ./config:/app/config
       # Remote Sparks with SSH *key* auth: OpenSSH inside the container uses
@@ -41,12 +42,14 @@ services:
       # default-named key (id_ed25519 / id_rsa). A custom name like
       # id_ed25519_shared must be mounted *as* id_ed25519, or set
       # SSH_IDENTITY_FILE to the path inside the container.
-      # - ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519:ro
+      - ${HOME}/.ssh/id_ed25519:/root/.ssh/id_ed25519:ro
     environment:
       # Secure default: host-networked service listens only on loopback.
       # See docs/REMOTE-ACCESS.md; direct non-loopback binds fail closed.
       - BIND_HOST=${BIND_HOST:-127.0.0.1}
       - SPARKDASH_ALLOW_OPEN_REMOTE=${SPARKDASH_ALLOW_OPEN_REMOTE:-1}
+      # Auth token for the remote (non-loopback) bind; set in .env
+      - SPARKDASH_TOKEN=${SPARKDASH_TOKEN:-}
       - PORT=5555
       - LLM_PORT=8888
       - NODE_ENV=production
