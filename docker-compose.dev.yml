@@ -39,3 +39,6 @@ services:
       - HOST_ROOT_PATH=/host/root
       - SSH_CONTROL_PERSIST_SECONDS=${SSH_CONTROL_PERSIST_SECONDS:-60}
       - SSH_IDENTITY_FILE=${SSH_IDENTITY_FILE:-}
+      # Optional fleet fan daemon status endpoint (shared rack fan)
+      - FAN_STATUS_URL=${FAN_STATUS_URL:-}
+      - POLL_INTERVAL_FAN=${POLL_INTERVAL_FAN:-5000}

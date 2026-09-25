@@ -126,6 +126,7 @@ function placeholderSnapshot(
 function DashboardApp() {
   const {
     sparks,
+    fan,
     activeId,
     setActiveId,
     activeSpark,
@@ -356,6 +357,7 @@ function DashboardApp() {
               showOverviewSearch={settings?.showOverviewSearch ?? false}
               temperatureUnit={settings?.temperatureUnit ?? "celsius"}
               overviewColumns={settings?.overviewColumns ?? 3}
+              fan={fan}
               onSelectSpark={navigate}
             />
           ) : displayActive ? (

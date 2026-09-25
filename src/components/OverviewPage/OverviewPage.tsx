@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import type { SparkSnapshot } from "../../api/types";
+import type { FleetFanStatus, SparkSnapshot } from "../../api/types";
 import { isWorkerSpark, resolveSparkRole } from "../../api/sparkRole";
 import { shutdownAllSparks, updateAllHermes, wakeAllSparks } from "../../api/client";
 import { ConfirmShutdownDialog } from "../ConfirmShutdownDialog";
 import { MetricBar } from "../ui/MetricBar";
 import { FleetEnergyCard } from "./FleetEnergyCard";
 import { FleetAlertStrip } from "./FleetAlertStrip";
+import { FanStatusStrip } from "./FanStatusStrip";
 import { ActivityIcon, PowerOffIcon, PowerOnIcon, RotateIcon } from "../ui/icons";
 
 interface OverviewPageProps {
@@ -18,6 +19,8 @@ interface OverviewPageProps {
   temperatureUnit?: "celsius" | "fahrenheit";
   /** Cards per row on large screens (Settings, 1–6). */
   overviewColumns?: number;
+  /** Fleet fan daemon status (FAN_STATUS_URL); null when unconfigured. */
+  fan?: FleetFanStatus | null;
   onSelectSpark?: (id: string) => void;
 }
 
@@ -402,6 +405,7 @@ export function OverviewPage({
   showOverviewSearch = false,
   temperatureUnit = "celsius",
   overviewColumns = 3,
+  fan = null,
   onSelectSpark,
 }: OverviewPageProps) {
   const [query, setQuery] = useState("");
@@ -571,7 +575,8 @@ export function OverviewPage({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--density-overview-rhythm)" }}>
       {showFleetEnergy ? <FleetEnergyCard nodeCount={sparks.length} /> : null}
-      {showFleetExceptions ? <FleetAlertStrip sparks={sparks} onSelect={onSelectSpark} /> : null}
+      {showFleetExceptions ? <FleetAlertStrip sparks={sparks} fan={fan} onSelect={onSelectSpark} /> : null}
+      {fan ? <FanStatusStrip fan={fan} /> : null}
       <div className="flex flex-wrap items-end justify-between gap-6">
         <h1
           className="font-normal leading-tight tracking-tight text-text-strong"
