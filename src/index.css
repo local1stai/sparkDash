@@ -674,6 +674,25 @@ input[type="checkbox"] {
   color: var(--color-accent);
 }
 
+/* ─── Overview grid (configurable columns) ────────────── */
+/* Column count at lg comes from the inline --overview-columns variable
+   (Settings → "Overview columns"; default 3 = legacy 3-per-row layout).
+   Breakpoints mirror Tailwind's sm (640px) / lg (1024px). */
+.overview-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 640px) {
+  .overview-page {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .overview-page {
+    grid-template-columns: repeat(var(--overview-columns, 3), minmax(0, 1fr));
+  }
+}
+
 /* ─── Overview card (frosted, clickable) ─────────────── */
 .overview-card {
   position: relative;

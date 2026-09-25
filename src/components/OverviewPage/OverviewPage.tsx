@@ -16,6 +16,8 @@ interface OverviewPageProps {
   showFleetExceptions?: boolean;
   showOverviewSearch?: boolean;
   temperatureUnit?: "celsius" | "fahrenheit";
+  /** Cards per row on large screens (Settings, 1–6). */
+  overviewColumns?: number;
   onSelectSpark?: (id: string) => void;
 }
 
@@ -399,10 +401,12 @@ export function OverviewPage({
   showFleetExceptions = false,
   showOverviewSearch = false,
   temperatureUnit = "celsius",
+  overviewColumns = 3,
   onSelectSpark,
 }: OverviewPageProps) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline" | "issues">("all");
+  const columns = Math.min(6, Math.max(1, Math.round(overviewColumns)));
   const withoutWorkers = hideWorkers ? sparks.filter((s) => !isWorkerSpark(s)) : sparks;
   const visibleSparks = withoutWorkers.filter((spark) => {
     if (hideOffline && !spark.online) return false;
@@ -700,9 +704,15 @@ export function OverviewPage({
         description={`Gracefully shut down all ${onlineShutdownCount} online Spark${onlineShutdownCount === 1 ? "" : "s"}? Offline nodes will be skipped.`}
         confirmLabel="Shut down all"
       />
-      <div className="overview-page grid sm:grid-cols-2 lg:grid-cols-3" style={{ gap: "var(--density-page-gap)" }}>
+      <div
+        className="overview-page"
+        style={{
+          ["--overview-columns" as string]: String(columns),
+          gap: "var(--density-page-gap)",
+        }}
+      >
         {visibleSparks.length === 0 && (
-          <p className="panel p-6 text-sm text-muted sm:col-span-2 lg:col-span-3">
+          <p className="panel p-6 text-sm text-muted" style={{ gridColumn: "1 / -1" }}>
             No units match the current search and status filters.
           </p>
         )}

@@ -562,6 +562,8 @@ export interface Settings {
   showFleetExceptions: boolean;
   /** Overview search field + status filter. Off by default. */
   showOverviewSearch: boolean;
+  /** Overview grid card columns on large screens (1–6; 3 = legacy layout). */
+  overviewColumns: number;
 }
 
 export interface SparksListResponse {
