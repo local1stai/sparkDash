@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { SparkSnapshot } from "../../api/types";
+import type { FleetFanStatus, SparkSnapshot } from "../../api/types";
 
-type Alert = { key: string; spark: SparkSnapshot; label: string; severity: "critical" | "warning" };
+type Alert = { key: string; spark: SparkSnapshot | null; label: string; severity: "critical" | "warning" };
 
-function derive(sparks: SparkSnapshot[]): Alert[] {
+function derive(sparks: SparkSnapshot[], fan: FleetFanStatus | null): Alert[] {
   const alerts: Alert[] = [];
   for (const spark of sparks) {
     if (!spark.online) alerts.push({ key: `${spark.id}:offline`, spark, label: "Host unreachable", severity: "critical" });
@@ -12,11 +12,16 @@ function derive(sparks: SparkSnapshot[]): Alert[] {
     if (spark.llmMonitoring !== false && spark.metrics.llm.length > 0 && spark.metrics.llm.every((llm) => !llm.available)) alerts.push({ key: `${spark.id}:llm`, spark, label: "LLM unavailable", severity: "warning" });
     if (spark.tailscaleMonitoring && spark.metrics.tailscale && (!spark.metrics.tailscale.available || spark.metrics.tailscale.online === false)) alerts.push({ key: `${spark.id}:tailnet`, spark, label: "Tailnet unavailable", severity: "warning" });
   }
+  if (fan) {
+    if (fan.failsafe || fan.mode === "FAILSAFE") alerts.push({ key: "fan:failsafe", spark: null, label: "Fan FAILSAFE engaged", severity: "critical" });
+    else if (fan.online && fan.fanOk === false) alerts.push({ key: "fan:fault", spark: null, label: "Fan controller fault", severity: "critical" });
+    else if (fan.online && fan.mode === "hold") alerts.push({ key: "fan:hold", spark: null, label: "Fan on hold (metrics source unreachable)", severity: "warning" });
+  }
   return alerts;
 }
 
-export function FleetAlertStrip({ sparks, onSelect }: { sparks: SparkSnapshot[]; onSelect?: (id: string) => void }) {
-  const alerts = useMemo(() => derive(sparks), [sparks]);
+export function FleetAlertStrip({ sparks, fan, onSelect }: { sparks: SparkSnapshot[]; fan?: FleetFanStatus | null; onSelect?: (id: string) => void }) {
+  const alerts = useMemo(() => derive(sparks, fan ?? null), [sparks, fan]);
   const firstSeen = useRef(new Map<string, number>());
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -32,9 +37,20 @@ export function FleetAlertStrip({ sparks, onSelect }: { sparks: SparkSnapshot[];
       <h2 id="fleet-alerts-title" className="text-xs font-semibold text-text-strong">Active fleet exceptions · {alerts.length}</h2>
       <ul className="mt-2 flex flex-wrap gap-2">
         {alerts.map((alert) => <li key={alert.key}>
-          <button type="button" onClick={() => onSelect?.(alert.spark.id)} className={`min-h-11 rounded border px-3 py-2 text-left text-xs ${alert.severity === "critical" ? "border-danger/50 text-danger" : "border-warning/50 text-warning"}`}>
-            <strong>{alert.spark.name}</strong> · {alert.label} · {Math.max(0, Math.floor((now - (firstSeen.current.get(alert.key) ?? now)) / 60_000))}m
-          </button>
+          {(() => {
+            const spark = alert.spark;
+            const elapsed = `${Math.max(0, Math.floor((now - (firstSeen.current.get(alert.key) ?? now)) / 60_000))}m`;
+            const tone = alert.severity === "critical" ? "border-danger/50 text-danger" : "border-warning/50 text-warning";
+            return spark ? (
+              <button type="button" onClick={() => onSelect?.(spark.id)} className={`min-h-11 rounded border px-3 py-2 text-left text-xs ${tone}`}>
+                <strong>{spark.name}</strong> · {alert.label} · {elapsed}
+              </button>
+            ) : (
+              <span className={`inline-block rounded border px-3 py-2 text-left text-xs ${tone}`}>
+                {alert.label} · {elapsed}
+              </span>
+            );
+          })()}
         </li>)}
       </ul>
     </section>

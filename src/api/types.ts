@@ -523,6 +523,8 @@ export interface WsSnapshot {
   generatedAt?: number;
   sparks: SparkSnapshot[];
   refreshInterval: number;
+  /** Fleet fan daemon status; absent when FAN_STATUS_URL is not configured. */
+  fan?: FleetFanStatus | null;
 }
 
 export interface FleetEnergy {
@@ -542,6 +544,28 @@ export interface FleetEnergy {
   nodeCoverage24hMs: Record<string, number>;
   nodeCoverage31dMs: Record<string, number>;
   hourlyWatts24h: Array<number | null>;
+}
+
+/**
+ * Fleet fan daemon status (FAN_STATUS_URL) — one shared rack fan, so this is
+ * fleet-level, not per-Spark. Absent from snapshots when unconfigured.
+ */
+export interface FleetFanStatus {
+  /** Daemon answered the last poll. */
+  online: boolean;
+  mode: "auto" | "hold" | "FAILSAFE" | null;
+  failsafe: boolean;
+  fanOk: boolean | null;
+  sparksOnline: number | null;
+  fanPctTarget: number | null;
+  fanPctSent: number | null;
+  rpm: number | null;
+  pwmPercent: number | null;
+  ts: string | null;
+  cycle: number | null;
+  /** Server fetch time (ms epoch). */
+  fetchedAt: number;
+  error: string | null;
 }
 
 // ─── API responses ────────────────────────────────────────

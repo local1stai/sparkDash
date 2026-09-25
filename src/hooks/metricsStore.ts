@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
-import type { SparkSnapshot } from "../api/types";
+import type { FleetFanStatus, SparkSnapshot } from "../api/types";
+import { FAN_SERIES_ID } from "../constants";
 import { TimedRingBuffer, type TimedSample } from "./ringBuffer";
 
 /**
@@ -170,6 +171,17 @@ export function ingestSnapshots(sparks: SparkSnapshot[], at = Date.now()): void 
   // Always notify: sparkMap refs refresh every frame (online flips included),
   // even when no history sample was appended.
   notify();
+}
+
+/**
+ * Append one fleet fan RPM sample. Called from useSnapshot next to
+ * ingestSnapshots — which always notifies — so no notify() is needed here.
+ * Offline daemons append nothing (no fake zero-floor on the sparkline).
+ */
+export function ingestFanSnapshot(fan: FleetFanStatus | null, at = Date.now()): void {
+  if (fan?.online && fan.rpm != null && fan.rpm > 0) {
+    pushHistory(`${FAN_SERIES_ID}:rpm`, fan.rpm, at);
+  }
 }
 
 /** Read the latest cached snapshot for a spark (subscribe via useSpark). */
