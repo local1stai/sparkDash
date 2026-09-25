@@ -38,7 +38,8 @@ import { formatLlmBaseUrl, parseLlmTargetInput } from "../src/shared/llmTarget.j
 import { llmDaily } from "./collectors/LlmDaily.js";
 import { closeLlmStreamAgent } from "./collectors/LlmStreaming.js";
 import { compareSemver, getLatestRelease } from "./collectors/HermesReleases.js";
-import { FLEET_ENERGY_JSON_PATH } from "./config.js";
+import { FAN_STATUS_URL, FLEET_ENERGY_JSON_PATH, POLL_INTERVAL_FAN } from "./config.js";
+import { FanStatusProbe } from "./collectors/FanStatusProbe.js";
 import { FleetEnergyTracker } from "./energy/FleetEnergyTracker.js";
 import {
   createFleetEnergyRuntime,
@@ -307,6 +308,13 @@ const fleetEnergyRuntime = createFleetEnergyRuntime({
   monitors,
 });
 
+// Fleet-level fan daemon probe — racks with one shared fan expose its status
+// as JSON (FAN_STATUS_URL). Null when unconfigured: the feature stays fully
+// hidden (no fan field on the wire, /api/fan returns 404).
+const fanStatusProbe = FAN_STATUS_URL
+  ? new FanStatusProbe(FAN_STATUS_URL, { intervalMs: POLL_INTERVAL_FAN })
+  : null;
+
 // ─── Express app ─────────────────────────────────────────
 const app = express();
 const server = createServer(app);
@@ -324,6 +332,19 @@ function clientKey(req) {
 
 // ─── REST API ────────────────────────────────────────────
 registerFleetEnergyRoute(app, fleetEnergyTracker);
+
+// Optional fleet fan daemon status; 404 keeps the route self-documenting
+// when the feature is not configured, 503 while the first poll is in flight.
+app.get("/api/fan", (_req, res) => {
+  if (!fanStatusProbe) {
+    return res.status(404).json({ error: "Fan status not configured (FAN_STATUS_URL is unset)" });
+  }
+  const snapshot = fanStatusProbe.snapshot();
+  if (!snapshot) {
+    return res.status(503).json({ error: "Fan status not polled yet" });
+  }
+  res.json(snapshot);
+});
 
 // Never return SSH passwords in any response
 app.get("/api/sparks", (_req, res) => {
@@ -1651,11 +1672,15 @@ let _lastBroadcastPayload = null;
 
 /** Build the snapshot payload string. Centralized so broadcast + refresh share it. */
 function buildSnapshotPayload() {
+  const fan = fanStatusProbe?.snapshot() ?? null;
   return JSON.stringify({
     type: "snapshot",
     generatedAt: Date.now(),
     sparks: orderedSnapshots(),
     refreshInterval: getSettings().pollIntervalMs,
+    // Fleet fan daemon status — only present when FAN_STATUS_URL is set and
+    // the first poll has settled, so existing deployments see no change.
+    ...(fan ? { fan } : {}),
   });
 }
 
@@ -1734,6 +1759,7 @@ if (!startupPreflight.fatal) {
     }
     startAllMonitors();
     fleetEnergyRuntime.start();
+    fanStatusProbe?.start();
   });
 } else {
   process.exitCode = 1;
@@ -1763,6 +1789,7 @@ async function shutdown(signal) {
     console.error("[sparkDash] failed to flush LLM daily history:", err.message);
   }
   const energyPersistenceSucceeded = fleetEnergyRuntime.stop();
+  fanStatusProbe?.stop();
   const streamAgentClosedGracefully = await closeLlmStreamAgent();
   if (!streamAgentClosedGracefully) {
     console.warn("[sparkDash] LLM dispatcher close timed out; destroyed open sockets");
