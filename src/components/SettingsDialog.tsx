@@ -398,6 +398,30 @@ export function SettingsDialog({ open, onClose, onSaved }: SettingsDialogProps) 
                 </span>
               </label>
             </div>
+
+            {/* Overview columns */}
+            <div>
+              <label className="text-xs text-muted">Overview columns</label>
+              <div className="mt-1.5 flex gap-2">
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => update({ overviewColumns: n })}
+                    className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+                      settings.overviewColumns === n
+                        ? "bg-accent text-white"
+                        : "border border-border bg-surface-elevated text-muted hover:bg-surface-hover"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-[10px] text-muted">
+                Cards per row on large screens (1–6). Tablets stay 2, phones 1.
+              </p>
+            </div>
           </div>
         )}
 
