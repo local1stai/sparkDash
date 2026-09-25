@@ -23,13 +23,19 @@ function fan(overrides: Partial<FleetFanStatus> = {}): FleetFanStatus {
 }
 
 describe("FanStatusStrip states", () => {
-  it("shows RPM, duty, and PWM for a healthy daemon", () => {
+  it("shows RPM and the controller duty for a healthy daemon", () => {
     const { container } = render(<FanStatusStrip fan={fan()} />);
     expect(container.textContent).toContain("Fleet Fan");
     expect(container.textContent).toContain("1320");
     expect(container.textContent).toContain("37%");
-    expect(container.textContent).toContain("35% → 37%");
     expect(container.textContent).toContain("auto");
+    // target (35) differs from the controller readback (37) — surfaced as a note
+    expect(container.textContent).toContain("(target 35%)");
+  });
+
+  it("hides the target note when it matches the applied duty", () => {
+    const { container } = render(<FanStatusStrip fan={fan({ fanPctTarget: 37 })} />);
+    expect(container.textContent).not.toContain("target");
   });
 
   it("flags failsafe, controller faults, hold, and unreachable daemons", () => {

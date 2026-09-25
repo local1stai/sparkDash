@@ -28,6 +28,14 @@ export function FanStatusStrip({ fan }: { fan: FleetFanStatus }) {
     [series, lastAt]
   );
   const critical = fan.failsafe || fan.fanOk === false;
+  // Controller readback is the ground truth; fall back to the last command,
+  // then to the curve's target. The target is only surfaced when it disagrees
+  // with what the fan is actually doing (deadband drift or a stuck send).
+  const dutyNow = fan.pwmPercent ?? fan.fanPctSent ?? fan.fanPctTarget;
+  const targetNote =
+    dutyNow != null && fan.fanPctTarget != null && Math.round(dutyNow) !== Math.round(fan.fanPctTarget)
+      ? pct(fan.fanPctTarget)
+      : null;
   const dotClass =
     !fan.online || critical
       ? "bg-danger"
@@ -67,14 +75,11 @@ export function FanStatusStrip({ fan }: { fan: FleetFanStatus }) {
           <Sparkline data={rpmTrend} width={160} height={28} />
         </div>
         <div>
-          <div className="text-[10px] text-muted">PWM</div>
-          <strong className="font-tabular text-sm">{pct(fan.pwmPercent)}</strong>
-        </div>
-        <div>
-          <div className="text-[10px] text-muted">Duty (target → sent)</div>
-          <strong className="font-tabular text-sm">
-            {pct(fan.fanPctTarget)} → {pct(fan.fanPctSent)}
-          </strong>
+          <div className="text-[10px] text-muted">Duty</div>
+          <strong className="font-tabular text-sm">{pct(dutyNow)}</strong>
+          {targetNote != null && (
+            <span className="ml-1 text-[10px] text-muted">(target {targetNote})</span>
+          )}
         </div>
       </div>
       {fan.failsafe && (
