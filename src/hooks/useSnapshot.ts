@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { SparkSnapshot, WsSnapshot } from "../api/types";
-import { ingestSnapshots } from "./metricsStore";
+import type { FleetFanStatus, SparkSnapshot, WsSnapshot } from "../api/types";
+import { ingestFanSnapshot, ingestSnapshots } from "./metricsStore";
 import { OVERVIEW_ID } from "../constants";
 
 const TOKEN = (typeof localStorage !== "undefined" && localStorage.getItem("sparkdashToken")) || "";
@@ -13,6 +13,7 @@ const RECONNECT_DELAY = 2000;
  */
 export function useSnapshot() {
   const [sparks, setSparks] = useState<SparkSnapshot[]>([]);
+  const [fan, setFan] = useState<FleetFanStatus | null>(null);
   const [connected, setConnected] = useState(false);
   const [lastValidSnapshotAt, setLastValidSnapshotAt] = useState<number | null>(null);
   const [snapshotGeneratedAt, setSnapshotGeneratedAt] = useState<number | null>(null);
@@ -47,8 +48,10 @@ export function useSnapshot() {
         if (msg.type === "snapshot" && Array.isArray(msg.sparks)) {
           const receivedAt = Date.now();
           // Feed the central history store (8b) before notifying React state.
+          ingestFanSnapshot(msg.fan ?? null, msg.generatedAt ?? receivedAt);
           ingestSnapshots(msg.sparks, msg.generatedAt ?? receivedAt);
           setSparks(msg.sparks);
+          setFan(msg.fan ?? null);
           setConnected(true);
           setLastValidSnapshotAt(receivedAt);
           setSnapshotGeneratedAt(
@@ -108,6 +111,7 @@ export function useSnapshot() {
 
   return {
     sparks,
+    fan,
     connected,
     activeId,
     setActiveId,
