@@ -590,8 +590,6 @@ export interface Settings {
   overviewColumns: number;
   /** Benchmark dialogs offer "Copy image" — a PNG share card of the results. */
   benchShareImage: boolean;
-  /** Overview grid card columns on large screens (1–6; 3 = legacy layout). */
-  overviewColumns: number;
 }
 
 export interface SparksListResponse {
