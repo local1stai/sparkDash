@@ -42,3 +42,6 @@ services:
       # Optional fleet fan daemon status endpoint (shared rack fan)
       - FAN_STATUS_URL=${FAN_STATUS_URL:-}
       - POLL_INTERVAL_FAN=${POLL_INTERVAL_FAN:-5000}
+      # Optional fleet power meter (per-Spark smart plugs)
+      - POWER_METER_URL=${POWER_METER_URL:-}
+      - POLL_INTERVAL_POWER=${POLL_INTERVAL_POWER:-5000}

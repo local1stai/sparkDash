@@ -412,6 +412,8 @@ Copy `.env.example` to `.env` if needed:
 | `COMFY_PORT` | `8188` | Default ComfyUI probe port |
 | `FAN_STATUS_URL` | _(empty)_ | Optional fleet fan daemon status URL (shared rack fan). Adds the Overview fan strip + `GET /api/fan` when set |
 | `POLL_INTERVAL_FAN` | `5000` | Fleet fan daemon status poll (ms) |
+| `POWER_METER_URL` | _(empty)_ | Optional fleet power meter base URL (one smart plug per Spark). Adds the fleet power pane, per-Spark wall watts + `GET /api/power` when set |
+| `POLL_INTERVAL_POWER` | `5000` | Fleet power meter poll (ms) |
 | `POLL_INTERVAL_GPU` | `2000` | GPU poll (ms) |
 | `POLL_INTERVAL_COMFY` | `2000` | ComfyUI probe poll (ms) |
 | `POLL_INTERVAL_CPU` | `2000` | CPU / RAM poll (ms) |

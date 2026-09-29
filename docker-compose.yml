@@ -63,3 +63,7 @@ services:
       # strip + GET /api/fan are hidden when FAN_STATUS_URL is unset.
       - FAN_STATUS_URL=${FAN_STATUS_URL:-}
       - POLL_INTERVAL_FAN=${POLL_INTERVAL_FAN:-5000}
+      # Optional fleet power meter (per-Spark smart plugs); the power pane +
+      # GET /api/power are hidden when POWER_METER_URL is unset.
+      - POWER_METER_URL=${POWER_METER_URL:-}
+      - POLL_INTERVAL_POWER=${POLL_INTERVAL_POWER:-5000}

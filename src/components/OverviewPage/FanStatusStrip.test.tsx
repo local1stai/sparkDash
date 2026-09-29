@@ -64,4 +64,40 @@ describe("FanStatusStrip states", () => {
     );
     expect(sparse.container.textContent).toContain("—");
   });
+
+  it("shows the fleet power pane alongside the fan", () => {
+    const power = {
+      online: true,
+      totalWatts: 341.1,
+      kwhToday: 0.42,
+      kwhMonth: null,
+      plugs: {
+        "gx10-91": { watts: 60.7, relayOn: true, kwhToday: 0.03, cycling: false, ok: true },
+        "gx10-92": { watts: 42.1, relayOn: true, kwhToday: 0.02, cycling: false, ok: true },
+      },
+      fetchedAt: Date.now(),
+      error: null,
+    };
+    const { container } = render(<FanStatusStrip fan={fan()} power={power} />);
+    expect(container.textContent).toContain("Fleet power");
+    expect(container.textContent).toContain("341 W");
+    expect(container.textContent).toContain("0.42 kWh");
+    expect(container.textContent).toContain("2/2");
+  });
+
+  it("renders power-only when no fan daemon is configured", () => {
+    const power = {
+      online: false,
+      totalWatts: null,
+      kwhToday: null,
+      kwhMonth: null,
+      plugs: {},
+      fetchedAt: Date.now(),
+      error: "ECONNREFUSED",
+    };
+    const { container } = render(<FanStatusStrip power={power} />);
+    expect(container.textContent).toContain("Fleet Power");
+    expect(container.textContent).toContain("Power meter unreachable: ECONNREFUSED");
+    expect(container.textContent).not.toContain("RPM");
+  });
 });

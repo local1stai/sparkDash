@@ -525,6 +525,8 @@ export interface WsSnapshot {
   refreshInterval: number;
   /** Fleet fan daemon status; absent when FAN_STATUS_URL is not configured. */
   fan?: FleetFanStatus | null;
+  /** Fleet power meter status; absent when POWER_METER_URL is not configured. */
+  power?: FleetPowerStatus | null;
 }
 
 export interface FleetEnergy {
@@ -564,6 +566,30 @@ export interface FleetFanStatus {
   ts: string | null;
   cycle: number | null;
   /** Server fetch time (ms epoch). */
+  fetchedAt: number;
+  error: string | null;
+}
+
+/** Per-Spark smart-plug state within the fleet power payload. */
+export interface FleetPlugStatus {
+  watts: number | null;
+  relayOn: boolean | null;
+  kwhToday: number | null;
+  cycling: boolean;
+  ok: boolean;
+}
+
+/**
+ * Fleet power meter status (POWER_METER_URL) — one smart plug per Spark,
+ * so real wall watts exist both fleet-wide and per Spark. Absent from
+ * snapshots when unconfigured.
+ */
+export interface FleetPowerStatus {
+  online: boolean;
+  totalWatts: number | null;
+  kwhToday: number | null;
+  kwhMonth: number | null;
+  plugs: Record<string, FleetPlugStatus>;
   fetchedAt: number;
   error: string | null;
 }
