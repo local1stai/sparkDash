@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { FleetFanStatus, SparkSnapshot, WsSnapshot } from "../api/types";
+import type { FleetFanStatus, FleetPowerStatus, SparkSnapshot, WsSnapshot } from "../api/types";
 import { ingestFanSnapshot, ingestSnapshots } from "./metricsStore";
 import { OVERVIEW_ID } from "../constants";
 
@@ -14,6 +14,7 @@ const RECONNECT_DELAY = 2000;
 export function useSnapshot() {
   const [sparks, setSparks] = useState<SparkSnapshot[]>([]);
   const [fan, setFan] = useState<FleetFanStatus | null>(null);
+  const [power, setPower] = useState<FleetPowerStatus | null>(null);
   const [connected, setConnected] = useState(false);
   const [lastValidSnapshotAt, setLastValidSnapshotAt] = useState<number | null>(null);
   const [snapshotGeneratedAt, setSnapshotGeneratedAt] = useState<number | null>(null);
@@ -52,6 +53,7 @@ export function useSnapshot() {
           ingestSnapshots(msg.sparks, msg.generatedAt ?? receivedAt);
           setSparks(msg.sparks);
           setFan(msg.fan ?? null);
+          setPower(msg.power ?? null);
           setConnected(true);
           setLastValidSnapshotAt(receivedAt);
           setSnapshotGeneratedAt(
@@ -112,6 +114,7 @@ export function useSnapshot() {
   return {
     sparks,
     fan,
+    power,
     connected,
     activeId,
     setActiveId,

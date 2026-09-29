@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { FleetFanStatus, SparkSnapshot } from "../../api/types";
+import type { FleetFanStatus, FleetPowerStatus, SparkSnapshot } from "../../api/types";
 import { isWorkerSpark, resolveSparkRole } from "../../api/sparkRole";
 import { shutdownAllSparks, updateAllHermes, wakeAllSparks } from "../../api/client";
 import { ConfirmShutdownDialog } from "../ConfirmShutdownDialog";
@@ -19,6 +19,8 @@ interface OverviewPageProps {
   temperatureUnit?: "celsius" | "fahrenheit";
   /** Fleet fan daemon status (FAN_STATUS_URL); null when unconfigured. */
   fan?: FleetFanStatus | null;
+  /** Fleet power meter status (POWER_METER_URL); null when unconfigured. */
+  power?: FleetPowerStatus | null;
   onSelectSpark?: (id: string) => void;
 }
 
@@ -86,11 +88,14 @@ function SparkCard({
   spark,
   headSparkName,
   temperatureUnit,
+  watts,
   onSelect,
 }: {
   spark: SparkSnapshot;
   headSparkName?: string | null;
   temperatureUnit: "celsius" | "fahrenheit";
+  /** Wall power measured at this Spark's smart plug, when metered. */
+  watts?: number | null;
   onSelect?: (id: string) => void;
 }) {
   const gpu = spark.metrics.gpu;
@@ -287,6 +292,13 @@ function SparkCard({
               label="GPU Power"
               value={`${gpu?.power?.draw ?? 0}W / ${gpu?.power?.limit ?? 0}W`}
             />
+            {watts != null && (
+              <MiniStat
+                label="Wall Power"
+                value={`${Math.round(watts)} W`}
+                title="Measured at the smart plug"
+              />
+            )}
             {vramAvail > 0 && (
               <MiniStat
                 label="Available"
@@ -403,6 +415,7 @@ export function OverviewPage({
   showOverviewSearch = false,
   temperatureUnit = "celsius",
   fan = null,
+  power = null,
   onSelectSpark,
 }: OverviewPageProps) {
   const [query, setQuery] = useState("");
@@ -572,7 +585,7 @@ export function OverviewPage({
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--density-overview-rhythm)" }}>
       {showFleetEnergy ? <FleetEnergyCard nodeCount={sparks.length} /> : null}
       {showFleetExceptions ? <FleetAlertStrip sparks={sparks} fan={fan} onSelect={onSelectSpark} /> : null}
-      {fan ? <FanStatusStrip fan={fan} /> : null}
+      {fan || power ? <FanStatusStrip fan={fan} power={power} /> : null}
       <div className="flex flex-wrap items-end justify-between gap-6">
         <h1
           className="font-normal leading-tight tracking-tight text-text-strong"
@@ -721,6 +734,7 @@ export function OverviewPage({
                 : null
             }
             temperatureUnit={temperatureUnit}
+            watts={power?.plugs?.[spark.id]?.watts ?? null}
             onSelect={onSelectSpark}
           />
         ))}

@@ -38,8 +38,15 @@ import { formatLlmBaseUrl, parseLlmTargetInput } from "../src/shared/llmTarget.j
 import { llmDaily } from "./collectors/LlmDaily.js";
 import { closeLlmStreamAgent } from "./collectors/LlmStreaming.js";
 import { compareSemver, getLatestRelease } from "./collectors/HermesReleases.js";
-import { FAN_STATUS_URL, FLEET_ENERGY_JSON_PATH, POLL_INTERVAL_FAN } from "./config.js";
+import {
+  FAN_STATUS_URL,
+  FLEET_ENERGY_JSON_PATH,
+  POLL_INTERVAL_FAN,
+  POLL_INTERVAL_POWER,
+  POWER_METER_URL,
+} from "./config.js";
 import { FanStatusProbe } from "./collectors/FanStatusProbe.js";
+import { PowerStatusProbe } from "./collectors/PowerStatusProbe.js";
 import { FleetEnergyTracker } from "./energy/FleetEnergyTracker.js";
 import {
   createFleetEnergyRuntime,
@@ -315,6 +322,13 @@ const fanStatusProbe = FAN_STATUS_URL
   ? new FanStatusProbe(FAN_STATUS_URL, { intervalMs: POLL_INTERVAL_FAN })
   : null;
 
+// Fleet-level power meter probe — one smart plug per Spark (e.g. tapoctl).
+// Null when unconfigured: the feature stays fully hidden (no power field on
+// the wire, /api/power returns 404).
+const powerStatusProbe = POWER_METER_URL
+  ? new PowerStatusProbe(POWER_METER_URL, { intervalMs: POLL_INTERVAL_POWER })
+  : null;
+
 // ─── Express app ─────────────────────────────────────────
 const app = express();
 const server = createServer(app);
@@ -342,6 +356,18 @@ app.get("/api/fan", (_req, res) => {
   const snapshot = fanStatusProbe.snapshot();
   if (!snapshot) {
     return res.status(503).json({ error: "Fan status not polled yet" });
+  }
+  res.json(snapshot);
+});
+
+// Optional fleet power meter status; same semantics as /api/fan.
+app.get("/api/power", (_req, res) => {
+  if (!powerStatusProbe) {
+    return res.status(404).json({ error: "Power meter not configured (POWER_METER_URL is unset)" });
+  }
+  const snapshot = powerStatusProbe.snapshot();
+  if (!snapshot) {
+    return res.status(503).json({ error: "Power meter not polled yet" });
   }
   res.json(snapshot);
 });
@@ -1673,14 +1699,16 @@ let _lastBroadcastPayload = null;
 /** Build the snapshot payload string. Centralized so broadcast + refresh share it. */
 function buildSnapshotPayload() {
   const fan = fanStatusProbe?.snapshot() ?? null;
+  const power = powerStatusProbe?.snapshot() ?? null;
   return JSON.stringify({
     type: "snapshot",
     generatedAt: Date.now(),
     sparks: orderedSnapshots(),
     refreshInterval: getSettings().pollIntervalMs,
-    // Fleet fan daemon status — only present when FAN_STATUS_URL is set and
-    // the first poll has settled, so existing deployments see no change.
+    // Fleet daemon statuses — only present when their env URL is set and the
+    // first poll has settled, so existing deployments see no change.
     ...(fan ? { fan } : {}),
+    ...(power ? { power } : {}),
   });
 }
 
@@ -1760,6 +1788,7 @@ if (!startupPreflight.fatal) {
     startAllMonitors();
     fleetEnergyRuntime.start();
     fanStatusProbe?.start();
+    powerStatusProbe?.start();
   });
 } else {
   process.exitCode = 1;
@@ -1790,6 +1819,7 @@ async function shutdown(signal) {
   }
   const energyPersistenceSucceeded = fleetEnergyRuntime.stop();
   fanStatusProbe?.stop();
+  powerStatusProbe?.stop();
   const streamAgentClosedGracefully = await closeLlmStreamAgent();
   if (!streamAgentClosedGracefully) {
     console.warn("[sparkDash] LLM dispatcher close timed out; destroyed open sockets");

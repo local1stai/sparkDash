@@ -127,6 +127,7 @@ function DashboardApp() {
   const {
     sparks,
     fan,
+    power,
     activeId,
     setActiveId,
     activeSpark,
@@ -357,6 +358,7 @@ function DashboardApp() {
               showOverviewSearch={settings?.showOverviewSearch ?? false}
               temperatureUnit={settings?.temperatureUnit ?? "celsius"}
               fan={fan}
+              power={power}
               onSelectSpark={navigate}
             />
           ) : displayActive ? (
