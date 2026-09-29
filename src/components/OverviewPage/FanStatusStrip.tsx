@@ -103,6 +103,12 @@ export function FanStatusStrip({
               </strong>
             </div>
             <div>
+              <div className="text-[10px] text-muted">This month</div>
+              <strong className="font-tabular text-sm">
+                {power.online && power.kwhMonth != null ? `${power.kwhMonth.toFixed(2)} kWh` : "—"}
+              </strong>
+            </div>
+            <div>
               <div className="text-[10px] text-muted">Plugs on</div>
               <strong className="font-tabular text-sm">
                 {power.online ? `${plugsOn}/${plugIds.length}` : "—"}

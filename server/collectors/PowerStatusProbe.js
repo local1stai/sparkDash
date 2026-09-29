@@ -45,6 +45,7 @@ export function normalizePowerStatus(raw) {
   let totalWatts = 0;
   let wattsSeen = false;
   let kwhToday = 0;
+  let kwhMonth = 0;
   let kwhSeen = false;
   for (const entry of plugsRaw) {
     if (!entry || typeof entry !== "object") continue;
@@ -52,12 +53,17 @@ export function normalizePowerStatus(raw) {
     if (!id || id in plugs) continue;
     const watts = numOrNull(entry.watts);
     const today = numOrNull(entry.kwh_today);
+    const month = numOrNull(entry.kwh_month);
     if (watts != null) {
       totalWatts += Math.max(0, watts);
       wattsSeen = true;
     }
     if (today != null) {
       kwhToday += Math.max(0, today);
+      kwhSeen = true;
+    }
+    if (month != null) {
+      kwhMonth += Math.max(0, month);
       kwhSeen = true;
     }
     plugs[id] = {
@@ -71,7 +77,7 @@ export function normalizePowerStatus(raw) {
   return {
     totalWatts: wattsSeen ? Math.round(totalWatts * 10) / 10 : null,
     kwhToday: kwhSeen ? Math.round(kwhToday * 1000) / 1000 : null,
-    kwhMonth: numOrNull(o.kwh_month),
+    kwhMonth: kwhSeen ? Math.round(kwhMonth * 1000) / 1000 : null,
     plugs,
   };
 }
