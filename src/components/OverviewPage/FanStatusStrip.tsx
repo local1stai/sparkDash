@@ -87,50 +87,9 @@ export function FanStatusStrip({
         </span>
       </div>
 
-      {fan && (
-        <>
-          <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
-            <div className="flex items-center gap-2">
-              <div>
-                <div className="text-[10px] text-muted">RPM</div>
-                <strong className="font-tabular text-sm">{num(fan.rpm)}</strong>
-              </div>
-              <Sparkline data={rpmTrend} width={160} height={28} />
-            </div>
-            <div>
-              <div className="text-[10px] text-muted">Duty</div>
-              <strong className="font-tabular text-sm">{pct(dutyNow)}</strong>
-              {targetNote != null && (
-                <span className="ml-1 text-[10px] text-muted">(target {targetNote})</span>
-              )}
-            </div>
-          </div>
-          {fan.failsafe && (
-            <p className="mt-2 text-xs text-danger">
-              Failsafe engaged — fan forced to a safe duty cycle.
-            </p>
-          )}
-          {!fan.failsafe && fan.online && fan.fanOk === false && (
-            <p className="mt-2 text-xs text-danger">
-              Fan controller fault — the last command may not have been applied.
-            </p>
-          )}
-          {fan.online && fan.mode === "hold" && (
-            <p className="mt-2 text-xs text-warning">
-              Hold — keeping the last fan decision while the metrics source is unreachable.
-            </p>
-          )}
-          {!fan.online && (
-            <p className="mt-2 text-xs text-warning">
-              Fan daemon unreachable: {fan.error ?? "unknown error"}
-            </p>
-          )}
-        </>
-      )}
-
-      {power && (
-        <div className={fan ? "mt-2 border-t border-border pt-2" : "mt-2"}>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+      <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
+        {power && (
+          <>
             <div>
               <div className="text-[10px] text-muted">Fleet power</div>
               <strong className="font-tabular text-sm">
@@ -149,16 +108,55 @@ export function FanStatusStrip({
                 {power.online ? `${plugsOn}/${plugIds.length}` : "—"}
               </strong>
             </div>
-          </div>
-          {anyCycling && (
-            <p className="mt-2 text-xs text-warning">A plug is power-cycling its Spark…</p>
-          )}
-          {!power.online && (
-            <p className="mt-2 text-xs text-warning">
-              Power meter unreachable: {power.error ?? "unknown error"}
-            </p>
-          )}
-        </div>
+          </>
+        )}
+        {fan && (
+          <>
+            <div className="flex items-center gap-2">
+              <div>
+                <div className="text-[10px] text-muted">RPM</div>
+                <strong className="font-tabular text-sm">{num(fan.rpm)}</strong>
+              </div>
+              <Sparkline data={rpmTrend} width={160} height={28} />
+            </div>
+            <div>
+              <div className="text-[10px] text-muted">Duty</div>
+              <strong className="font-tabular text-sm">{pct(dutyNow)}</strong>
+              {targetNote != null && (
+                <span className="ml-1 text-[10px] text-muted">(target {targetNote})</span>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {anyCycling && (
+        <p className="mt-2 text-xs text-warning">A plug is power-cycling its Spark…</p>
+      )}
+      {power && !power.online && (
+        <p className="mt-2 text-xs text-warning">
+          Power meter unreachable: {power.error ?? "unknown error"}
+        </p>
+      )}
+      {fan && fan.failsafe && (
+        <p className="mt-2 text-xs text-danger">
+          Failsafe engaged — fan forced to a safe duty cycle.
+        </p>
+      )}
+      {fan && !fan.failsafe && fan.online && fan.fanOk === false && (
+        <p className="mt-2 text-xs text-danger">
+          Fan controller fault — the last command may not have been applied.
+        </p>
+      )}
+      {fan && fan.online && fan.mode === "hold" && (
+        <p className="mt-2 text-xs text-warning">
+          Hold — keeping the last fan decision while the metrics source is unreachable.
+        </p>
+      )}
+      {fan && !fan.online && (
+        <p className="mt-2 text-xs text-warning">
+          Fan daemon unreachable: {fan.error ?? "unknown error"}
+        </p>
       )}
     </section>
   );
