@@ -9,5 +9,7 @@
   "showFleetEnergy": false,
   "showFleetExceptions": false,
   "showOverviewSearch": false,
+  "gaugeScales": {},
+  "benchShareImage": true,
   "overviewColumns": 4
 }
