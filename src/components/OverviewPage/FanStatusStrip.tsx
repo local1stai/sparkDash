@@ -159,7 +159,7 @@ export function FanStatusStrip({
               </strong>
             </div>
             {clusters.length > 0 && (
-              <div className="flex w-full flex-wrap items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {clusters.map((c) => (
                   <span
                     key={c.key}
