@@ -79,7 +79,10 @@ export function TokenCard() {
           ))}
           <button
             type="button"
-            onClick={() => setByHead((v) => !v)}
+            onClick={() => {
+              setFocus(null); // the mode toggle always takes over the chart
+              setByHead((v) => !v);
+            }}
             title={byHead ? "Show the fleet combined" : "Stack bars per head"}
             className={`rounded px-2.5 py-1 text-[10px] font-medium transition-colors ${
               byHead

@@ -122,6 +122,18 @@ describe("TokenCard", () => {
       ...container.querySelectorAll('[aria-label*="tokens generated per"] > span'),
     ] as HTMLElement[];
     expect(cleared[cleared.length - 1].title).not.toContain("GX10 95 ·");
+
+    // The Combined/By-head toggle also takes over from a focused head.
+    chip?.click();
+    await flush();
+    const toggle = [...container.querySelectorAll("button")].find((b) => b.textContent === "Combined");
+    toggle?.click();
+    await flush();
+    const afterToggle = [
+      ...container.querySelectorAll('[aria-label*="tokens generated per"] > span'),
+    ] as HTMLElement[];
+    expect(afterToggle[afterToggle.length - 1].title).toContain("GX10 91:"); // stacked breakdown, not focused
+    expect(afterToggle[afterToggle.length - 1].title).not.toContain("GX10 95 ·");
   });
 
   it("hides itself while no data has loaded", async () => {
