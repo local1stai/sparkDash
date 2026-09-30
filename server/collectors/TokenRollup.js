@@ -45,6 +45,8 @@ export class TokenRollup {
     this._days = {};
     /** @type {Record<string, number>} headId -> last cumulative counter */
     this._lastCounters = {};
+    /** @type {Set<string>} heads with a counter observed (for zero rows) */
+    this._heads = new Set();
     this._timer = null;
     this._dirty = false;
     this._load();
@@ -108,6 +110,7 @@ export class TokenRollup {
         total = (total ?? 0) + n; // heads can serve several ports — sum them
       }
       if (total == null) continue;
+      this._heads.add(snap.id);
       const last = this._lastCounters[snap.id];
       if (last != null && total > last) {
         day[snap.id] = (day[snap.id] ?? 0) + (total - last);
@@ -131,6 +134,9 @@ export class TokenRollup {
     const fleet = { today: 0, week: 0, month: 0, all: 0 };
     /** @type {Record<string, Record<string, number>>} */
     const perHead = {};
+    for (const headId of this._heads) {
+      perHead[headId] = { today: 0, week: 0, month: 0, all: 0 }; // observed idle heads show as zero
+    }
     for (const [day, heads] of Object.entries(this._days)) {
       const inWindow = {
         today: windows.today.includes(day),

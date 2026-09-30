@@ -374,6 +374,8 @@ app.get("/api/power", (_req, res) => {
     return res.status(503).json({ error: "Power meter not polled yet" });
   }
   res.json(snapshot);
+});
+
 // Generated-token totals per head + fleet (today / 7d / 30d / all).
 app.get("/api/tokens", (_req, res) => {
   const { fleet, perHead } = tokenRollup.totals();
