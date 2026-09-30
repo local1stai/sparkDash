@@ -13,6 +13,13 @@ interface ConfirmShutdownDialogProps {
   title: string;
   description: string;
   confirmLabel?: string;
+  /**
+   * Phrase the user must type to enable the confirm button (default
+   * "poweroff"). Pass null for a plain one-click confirm — hides the
+   * checkbox + phrase input and softens the danger styling; use for
+   * recoverable actions like a power cycle.
+   */
+  requirePhrase?: string | null;
 }
 
 function useEscape(enabled: boolean, onClose: () => void) {
@@ -33,6 +40,7 @@ export function ConfirmShutdownDialog({
   title,
   description,
   confirmLabel = "Shut down",
+  requirePhrase = CONFIRM_PHRASE,
 }: ConfirmShutdownDialogProps) {
   const [phrase, setPhrase] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
@@ -41,6 +49,7 @@ export function ConfirmShutdownDialog({
   const titleId = useId();
   const { mounted, visible } = useModalPresence(open);
   const trapRef = useFocusTrap(mounted);
+  const typed = requirePhrase != null && requirePhrase !== "";
 
   useEscape(open && !submitting, onClose);
 
@@ -51,9 +60,11 @@ export function ConfirmShutdownDialog({
       setSubmitting(false);
       return;
     }
-    const t = window.setTimeout(() => inputRef.current?.focus(), 50);
-    return () => window.clearTimeout(t);
-  }, [open]);
+    if (typed) {
+      const t = window.setTimeout(() => inputRef.current?.focus(), 50);
+      return () => window.clearTimeout(t);
+    }
+  }, [open, typed]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -64,8 +75,8 @@ export function ConfirmShutdownDialog({
     };
   }, [mounted]);
 
-  const phraseOk = phrase.trim().toLowerCase() === CONFIRM_PHRASE;
-  const canConfirm = phraseOk && acknowledged && !submitting;
+  const phraseOk = !typed || phrase.trim().toLowerCase() === requirePhrase.toLowerCase();
+  const canConfirm = phraseOk && (!typed || acknowledged) && !submitting;
 
   const handleConfirm = async () => {
     if (!canConfirm) return;
@@ -95,53 +106,60 @@ export function ConfirmShutdownDialog({
         aria-modal="true"
         aria-labelledby={titleId}
       >
-        <div className="modal-sheet__header flex items-center gap-2 text-danger" id={titleId}>
+        <div
+          className={`modal-sheet__header flex items-center gap-2 ${typed ? "text-danger" : "text-warning"}`}
+          id={titleId}
+        >
           <PowerOffIcon className="h-4 w-4 shrink-0" />
-          <span>Danger zone — {title}</span>
+          <span>{typed ? `Danger zone — ${title}` : title}</span>
         </div>
 
         <div className="modal-sheet__body space-y-3">
           <p className="text-xs leading-relaxed text-muted">{description}</p>
 
-          <div className="rounded-md border border-danger/35 bg-danger/10 px-3 py-2.5">
-            <p className="text-[11px] font-medium text-danger">
-              This powers off hardware. Running containers and sessions will stop.
-            </p>
-          </div>
+          {typed && (
+            <>
+              <div className="rounded-md border border-danger/35 bg-danger/10 px-3 py-2.5">
+                <p className="text-[11px] font-medium text-danger">
+                  This powers off hardware. Running containers and sessions will stop.
+                </p>
+              </div>
 
-          <label className="flex cursor-pointer items-start gap-2.5 text-xs text-text">
-            <input
-              type="checkbox"
-              checked={acknowledged}
-              disabled={submitting}
-              onChange={(e) => setAcknowledged(e.target.checked)}
-              className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--color-danger)]"
-            />
-            <span>I understand this cannot be undone from the dashboard.</span>
-          </label>
+              <label className="flex cursor-pointer items-start gap-2.5 text-xs text-text">
+                <input
+                  type="checkbox"
+                  checked={acknowledged}
+                  disabled={submitting}
+                  onChange={(e) => setAcknowledged(e.target.checked)}
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[var(--color-danger)]"
+                />
+                <span>I understand this cannot be undone from the dashboard.</span>
+              </label>
 
-          <div>
-            <label className="mb-1 block text-xs text-muted">
-              Type <span className="font-mono text-danger">{CONFIRM_PHRASE}</span> to confirm
-            </label>
-            <input
-              ref={inputRef}
-              type="text"
-              autoComplete="off"
-              spellCheck={false}
-              value={phrase}
-              disabled={submitting}
-              onChange={(e) => setPhrase(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  void handleConfirm();
-                }
-              }}
-              className="w-full rounded border border-border bg-surface-elevated px-3 py-1.5 font-mono text-xs text-text outline-none focus:border-danger"
-              placeholder={CONFIRM_PHRASE}
-            />
-          </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted">
+                  Type <span className="font-mono text-danger">{requirePhrase}</span> to confirm
+                </label>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={phrase}
+                  disabled={submitting}
+                  onChange={(e) => setPhrase(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void handleConfirm();
+                    }
+                  }}
+                  className="w-full rounded border border-border bg-surface-elevated px-3 py-1.5 font-mono text-xs text-text outline-none focus:border-danger"
+                  placeholder={requirePhrase}
+                />
+              </div>
+            </>
+          )}
         </div>
 
         <div className="modal-sheet__footer">
@@ -158,9 +176,13 @@ export function ConfirmShutdownDialog({
               type="button"
               onClick={() => void handleConfirm()}
               disabled={!canConfirm}
-              className="rounded-md border border-danger/50 bg-danger px-3 py-1.5 text-xs font-medium text-white transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+              className={`rounded-md border px-3 py-1.5 text-xs font-medium text-white transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40 ${
+                typed
+                  ? "border-danger/50 bg-danger"
+                  : "border-warning/50 bg-warning"
+              }`}
             >
-              {submitting ? "Shutting down…" : confirmLabel}
+              {submitting ? (typed ? "Shutting down…" : "Working…") : confirmLabel}
             </button>
           </div>
         </div>
