@@ -593,6 +593,8 @@ export interface FleetPowerStatus {
   plugs: Record<string, FleetPlugStatus>;
   fetchedAt: number;
   error: string | null;
+}
+
 // ─── Token rollups ────────────────────────────────────────
 /** Per-head + fleet generated-token totals for each window. */
 export interface TokenWindows {

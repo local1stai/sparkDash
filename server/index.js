@@ -44,10 +44,10 @@ import {
   POLL_INTERVAL_FAN,
   POLL_INTERVAL_POWER,
   POWER_METER_URL,
+  TOKENS_JSON_PATH,
 } from "./config.js";
 import { FanStatusProbe } from "./collectors/FanStatusProbe.js";
 import { PowerStatusProbe } from "./collectors/PowerStatusProbe.js";
-import { FLEET_ENERGY_JSON_PATH, TOKENS_JSON_PATH } from "./config.js";
 import { TokenRollup } from "./collectors/TokenRollup.js";
 import { FleetEnergyTracker } from "./energy/FleetEnergyTracker.js";
 import {
