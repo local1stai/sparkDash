@@ -5,6 +5,8 @@ import { SparkActions } from "./SparkActions";
 interface SparkHeaderProps {
   spark: SparkSnapshot;
   onEdit?: () => void;
+  /** A smart plug meters this Spark — offer the power-cycle action. */
+  hasPowerPlug?: boolean;
 }
 
 function formatUptime(seconds: number): string {
@@ -19,7 +21,7 @@ function formatUptime(seconds: number): string {
   return `${days}d ${remainHours}h`;
 }
 
-export function SparkHeader({ spark, onEdit }: SparkHeaderProps) {
+export function SparkHeader({ spark, onEdit, hasPowerPlug = false }: SparkHeaderProps) {
   const { hardware } = spark;
   const online = spark.online;
   const hermes = spark.hermes;
@@ -120,6 +122,7 @@ export function SparkHeader({ spark, onEdit }: SparkHeaderProps) {
       <SparkActions
         spark={spark}
         onEdit={onEdit}
+        hasPowerPlug={hasPowerPlug}
         className="ml-auto hidden flex-wrap items-center justify-end gap-2 sm:flex"
       />
     </div>

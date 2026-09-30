@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { SparkSnapshot } from "../../api/types";
-import { shutdownSpark, wakeSpark } from "../../api/client";
+import { powerCycleSpark, shutdownSpark, wakeSpark } from "../../api/client";
 import { ConfirmShutdownDialog } from "../ConfirmShutdownDialog";
 import { openHermesUpdateDialog } from "../../hooks/useHermesUpdateDialog";
 import { EditIcon, PowerOffIcon, PowerOnIcon, RotateIcon } from "../ui/icons";
@@ -8,6 +8,8 @@ import { EditIcon, PowerOffIcon, PowerOnIcon, RotateIcon } from "../ui/icons";
 interface SparkActionsProps {
   spark: SparkSnapshot;
   onEdit?: () => void;
+  /** A smart plug meters this Spark (POWER_METER_URL) — show power-cycle. */
+  hasPowerPlug?: boolean;
   /** Classes for the button-cluster wrapper (controls responsive visibility). */
   className?: string;
 }
@@ -18,11 +20,12 @@ interface SparkActionsProps {
  * just above "Resources" on mobile. Owning the shutdown dialog + transient
  * power message here keeps the two placements in sync.
  */
-export function SparkActions({ spark, onEdit, className }: SparkActionsProps) {
+export function SparkActions({ spark, onEdit, hasPowerPlug = false, className }: SparkActionsProps) {
   const online = spark.online;
   const [powerLoading, setPowerLoading] = useState(false);
   const [powerMsg, setPowerMsg] = useState<{ text: string; tone: "ok" | "err" } | null>(null);
   const [shutdownOpen, setShutdownOpen] = useState(false);
+  const [cycleOpen, setCycleOpen] = useState(false);
 
   const hermes = spark.hermes;
   const hermesRunning = hermes?.status === "running";
@@ -66,6 +69,27 @@ export function SparkActions({ spark, onEdit, className }: SparkActionsProps) {
     } finally {
       setPowerLoading(false);
       setTimeout(() => setPowerMsg(null), 5000);
+    }
+  }
+
+  async function handlePowerCycle() {
+    setPowerLoading(true);
+    setPowerMsg(null);
+    try {
+      const res = await powerCycleSpark(spark.id);
+      const how = res.mode === "graceful" ? "graceful shutdown" : "hard cut (unreachable)";
+      setPowerMsg({
+        text: `Power cycling via ${how} — back in a few minutes`,
+        tone: "ok",
+      });
+    } catch (err: unknown) {
+      setPowerMsg({
+        text: err instanceof Error ? err.message : "Power cycle failed",
+        tone: "err",
+      });
+    } finally {
+      setPowerLoading(false);
+      setTimeout(() => setPowerMsg(null), 8000);
     }
   }
 
@@ -133,7 +157,7 @@ export function SparkActions({ spark, onEdit, className }: SparkActionsProps) {
             type="button"
             onClick={() => setShutdownOpen(true)}
             disabled={powerLoading}
-            title="Graceful shutdown (requires /usr/local/bin/spark-shutdown on the host)"
+            title="Graceful shutdown (spark-shutdown script, or poweroff)"
             className="flex items-center gap-1.5 rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-[11px] text-muted transition-colors hover:bg-danger/20 hover:text-danger disabled:opacity-50"
           >
             <PowerOffIcon className="h-3 w-3" />
@@ -149,6 +173,18 @@ export function SparkActions({ spark, onEdit, className }: SparkActionsProps) {
           >
             <PowerOnIcon className="h-3 w-3" />
             Wake
+          </button>
+        )}
+        {hasPowerPlug && (
+          <button
+            type="button"
+            onClick={() => setCycleOpen(true)}
+            disabled={powerLoading}
+            title="Graceful shutdown, then power-cycle the smart plug — hard cut if the machine is unreachable"
+            className="flex items-center gap-1.5 rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-[11px] text-muted transition-colors hover:bg-warning/20 hover:text-warning disabled:opacity-50"
+          >
+            <RotateIcon className="h-3 w-3" />
+            Power cycle
           </button>
         )}
         {onEdit && (
@@ -170,6 +206,19 @@ export function SparkActions({ spark, onEdit, className }: SparkActionsProps) {
         title={`Shut down ${spark.name}`}
         description={`Gracefully shut down ${spark.name}? This will stop all containers and power off the node.`}
         confirmLabel="Shut down"
+      />
+
+      <ConfirmShutdownDialog
+        open={cycleOpen}
+        onClose={() => setCycleOpen(false)}
+        onConfirm={handlePowerCycle}
+        title={`Power cycle ${spark.name}`}
+        description={`Reboot ${spark.name} through its smart plug? ${
+          online
+            ? "It shuts down gracefully first, then the plug cuts power for ~10 s and the node boots again."
+            : "The node is offline — the plug will hard-cut power for ~10 s and restore it."
+        } Anything unsaved or running is lost on a hard cut.`}
+        confirmLabel="Power cycle"
       />
     </>
   );
