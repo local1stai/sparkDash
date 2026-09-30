@@ -18,6 +18,9 @@ const SECRETS_KEY_PATH =
 /** Daily LLM tok/s rollups (gitignored). */
 const LLM_DAILY_JSON_PATH =
   process.env.LLM_DAILY_JSON_PATH || path.join(ROOT, "config", "llm-daily.json");
+/** Daily generated-token rollups per head (gitignored). */
+const TOKENS_JSON_PATH =
+  process.env.TOKENS_JSON_PATH || path.join(ROOT, "config", "token-rollup.json");
 /** Rolling fleet energy estimates (gitignored; written atomically at mode 0600). */
 const FLEET_ENERGY_JSON_PATH =
   process.env.FLEET_ENERGY_JSON_PATH || path.join(ROOT, "config", "fleet-energy.json");
@@ -109,6 +112,7 @@ export {
   SPARKS_SECRETS_PATH,
   SECRETS_KEY_PATH,
   LLM_DAILY_JSON_PATH,
+  TOKENS_JSON_PATH,
   FLEET_ENERGY_JSON_PATH,
   LLM_PROBE_TIMEOUT_MS,
   COMFY_PROBE_TIMEOUT_MS,

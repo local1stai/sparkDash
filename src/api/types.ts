@@ -544,6 +544,21 @@ export interface FleetEnergy {
   hourlyWatts24h: Array<number | null>;
 }
 
+// ─── Token rollups ────────────────────────────────────────
+/** Per-head + fleet generated-token totals for each window. */
+export interface TokenWindows {
+  today: number;
+  week: number;
+  month: number;
+  all: number;
+}
+
+/** GET /api/tokens — exact counter-delta token totals (TokenRollup). */
+export interface TokensResponse {
+  fleet: TokenWindows;
+  heads: (TokenWindows & { id: string; name: string | null })[];
+}
+
 // ─── API responses ────────────────────────────────────────
 export interface Settings {
   pollIntervalMs: number;
@@ -564,6 +579,8 @@ export interface Settings {
   showOverviewSearch: boolean;
   /** Benchmark dialogs offer "Copy image" — a PNG share card of the results. */
   benchShareImage: boolean;
+  /** Overview tokens-generated card (per head + fleet). On by default. */
+  showTokenCard: boolean;
 }
 
 export interface SparksListResponse {

@@ -38,7 +38,8 @@ import { formatLlmBaseUrl, parseLlmTargetInput } from "../src/shared/llmTarget.j
 import { llmDaily } from "./collectors/LlmDaily.js";
 import { closeLlmStreamAgent } from "./collectors/LlmStreaming.js";
 import { compareSemver, getLatestRelease } from "./collectors/HermesReleases.js";
-import { FLEET_ENERGY_JSON_PATH } from "./config.js";
+import { FLEET_ENERGY_JSON_PATH, TOKENS_JSON_PATH } from "./config.js";
+import { TokenRollup } from "./collectors/TokenRollup.js";
 import { FleetEnergyTracker } from "./energy/FleetEnergyTracker.js";
 import {
   createFleetEnergyRuntime,
@@ -307,6 +308,9 @@ const fleetEnergyRuntime = createFleetEnergyRuntime({
   monitors,
 });
 
+// Exact generated-token rollups per head (cumulative counter deltas).
+const tokenRollup = new TokenRollup({ filePath: TOKENS_JSON_PATH });
+
 // ─── Express app ─────────────────────────────────────────
 const app = express();
 const server = createServer(app);
@@ -324,6 +328,19 @@ function clientKey(req) {
 
 // ─── REST API ────────────────────────────────────────────
 registerFleetEnergyRoute(app, fleetEnergyTracker);
+
+// Generated-token totals per head + fleet (today / 7d / 30d / all).
+app.get("/api/tokens", (_req, res) => {
+  const { fleet, perHead } = tokenRollup.totals();
+  res.json({
+    fleet,
+    heads: Object.entries(perHead).map(([id, windows]) => ({
+      id,
+      name: registry.getSpark(id)?.name ?? null,
+      ...windows,
+    })),
+  });
+});
 
 // Never return SSH passwords in any response
 app.get("/api/sparks", (_req, res) => {
@@ -1734,6 +1751,7 @@ if (!startupPreflight.fatal) {
     }
     startAllMonitors();
     fleetEnergyRuntime.start();
+    tokenRollup.start(orderedSnapshots);
   });
 } else {
   process.exitCode = 1;
@@ -1761,6 +1779,11 @@ async function shutdown(signal) {
     llmDaily.flush();
   } catch (err) {
     console.error("[sparkDash] failed to flush LLM daily history:", err.message);
+  }
+  try {
+    tokenRollup.stop();
+  } catch (err) {
+    console.error("[sparkDash] failed to flush token rollup:", err.message);
   }
   const energyPersistenceSucceeded = fleetEnergyRuntime.stop();
   const streamAgentClosedGracefully = await closeLlmStreamAgent();

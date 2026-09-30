@@ -6,6 +6,7 @@ import { ConfirmShutdownDialog } from "../ConfirmShutdownDialog";
 import { MetricBar } from "../ui/MetricBar";
 import { FleetEnergyCard } from "./FleetEnergyCard";
 import { FleetAlertStrip } from "./FleetAlertStrip";
+import { TokenCard } from "./TokenCard";
 import { ActivityIcon, PowerOffIcon, PowerOnIcon, RotateIcon } from "../ui/icons";
 
 interface OverviewPageProps {
@@ -16,6 +17,8 @@ interface OverviewPageProps {
   showFleetExceptions?: boolean;
   showOverviewSearch?: boolean;
   temperatureUnit?: "celsius" | "fahrenheit";
+  /** Settings gate for the tokens-generated card (default on). */
+  showTokenCard?: boolean;
   onSelectSpark?: (id: string) => void;
 }
 
@@ -399,6 +402,7 @@ export function OverviewPage({
   showFleetExceptions = false,
   showOverviewSearch = false,
   temperatureUnit = "celsius",
+  showTokenCard = true,
   onSelectSpark,
 }: OverviewPageProps) {
   const [query, setQuery] = useState("");
@@ -568,6 +572,7 @@ export function OverviewPage({
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--density-overview-rhythm)" }}>
       {showFleetEnergy ? <FleetEnergyCard nodeCount={sparks.length} /> : null}
       {showFleetExceptions ? <FleetAlertStrip sparks={sparks} onSelect={onSelectSpark} /> : null}
+      {showTokenCard ? <TokenCard /> : null}
       <div className="flex flex-wrap items-end justify-between gap-6">
         <h1
           className="font-normal leading-tight tracking-tight text-text-strong"

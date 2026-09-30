@@ -56,6 +56,7 @@ function _clampSettings(settings) {
   s.showFleetEnergy = Boolean(s.showFleetEnergy);
   s.showFleetExceptions = Boolean(s.showFleetExceptions);
   s.showOverviewSearch = Boolean(s.showOverviewSearch);
+  s.showTokenCard = Boolean(s.showTokenCard);
   // Ensure temperatureUnit is valid
   if (s.temperatureUnit !== "celsius" && s.temperatureUnit !== "fahrenheit") {
     s.temperatureUnit = DEFAULTS.temperatureUnit;
