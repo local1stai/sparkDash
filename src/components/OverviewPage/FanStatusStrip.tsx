@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { FAN_SERIES_ID } from "../../constants";
-import type { FleetFanStatus, FleetPowerStatus } from "../../api/types";
+import type { FleetFanStatus, FleetPowerStatus, SparkSnapshot } from "../../api/types";
+import { resolveSparkRole } from "../../api/sparkRole";
 import { useTimedMetricsHistory } from "../../hooks/metricsStore";
 import { Sparkline } from "../ui/Sparkline";
 
@@ -27,9 +28,12 @@ function pct(value: number | null): string {
 export function FanStatusStrip({
   fan = null,
   power = null,
+  sparks = [],
 }: {
   fan?: FleetFanStatus | null;
   power?: FleetPowerStatus | null;
+  /** Fleet list — used to group plug watts by head/worker cluster. */
+  sparks?: SparkSnapshot[];
 }) {
   const series = useTimedMetricsHistory(FAN_SERIES_ID, "rpm");
   const lastAt = series.length > 0 ? series[series.length - 1].at : 0;
@@ -51,6 +55,46 @@ export function FanStatusStrip({
   const plugIds = power ? Object.keys(power.plugs) : [];
   const plugsOn = plugIds.filter((id) => power?.plugs[id]?.relayOn === true).length;
   const anyCycling = plugIds.some((id) => power?.plugs[id]?.cycling === true);
+
+  // Per-cluster wall watts: each head plus its workers (workerHeadId), with
+  // orphaned workers lumped into an "Ungrouped" bucket. Only rendered when
+  // the fleet actually uses head/worker grouping.
+  const clusters = useMemo(() => {
+    if (!power?.online || sparks.length === 0) return [];
+    const known = new Set(sparks.map((s) => s.id));
+    const wattsOf = (id: string): number | null => {
+      const w = power.plugs[id]?.watts;
+      return w != null ? w : null;
+    };
+    const groups: { key: string; name: string; watts: number | null; members: string[] }[] = [];
+    const orphanWorkers = sparks.filter(
+      (s) => resolveSparkRole(s) === "worker" && (!s.workerHeadId || !known.has(s.workerHeadId))
+    );
+    for (const head of sparks.filter((s) => resolveSparkRole(s) !== "worker")) {
+      const members = [
+        head,
+        ...sparks.filter((s) => s.workerHeadId === head.id && resolveSparkRole(s) === "worker"),
+      ];
+      const vals = members.map((m) => wattsOf(m.id)).filter((w): w is number => w != null);
+      groups.push({
+        key: head.id,
+        name: head.name ?? head.id,
+        watts: vals.length ? Math.round(vals.reduce((a, b) => a + b, 0)) : null,
+        members: members.map((m) => `${m.name ?? m.id}: ${wattsOf(m.id) ?? "?"} W`),
+      });
+    }
+    if (orphanWorkers.length > 0) {
+      const vals = orphanWorkers.map((m) => wattsOf(m.id)).filter((w): w is number => w != null);
+      groups.push({
+        key: "__ungrouped__",
+        name: "Ungrouped",
+        watts: vals.length ? Math.round(vals.reduce((a, b) => a + b, 0)) : null,
+        members: orphanWorkers.map((m) => `${m.name ?? m.id}: ${wattsOf(m.id) ?? "?"} W`),
+      });
+    }
+    const hasGrouping = groups.some((g) => g.key !== "__ungrouped__") && sparks.some((s) => s.workerHeadId);
+    return hasGrouping ? groups : [];
+  }, [power, sparks]);
 
   return (
     <section className="panel p-3" aria-labelledby="fleet-fan-title">
@@ -114,6 +158,22 @@ export function FanStatusStrip({
                 {power.online ? `${plugsOn}/${plugIds.length}` : "—"}
               </strong>
             </div>
+            {clusters.length > 0 && (
+              <div className="flex w-full flex-wrap items-center gap-1.5">
+                {clusters.map((c) => (
+                  <span
+                    key={c.key}
+                    title={c.members.join(" · ")}
+                    className="rounded border border-border bg-surface-elevated px-2 py-0.5 text-[10px] text-muted"
+                  >
+                    {c.name}{" "}
+                    <strong className="font-tabular text-text">
+                      {c.watts != null ? `${c.watts} W` : "—"}
+                    </strong>
+                  </span>
+                ))}
+              </div>
+            )}
           </>
         )}
         {fan && (

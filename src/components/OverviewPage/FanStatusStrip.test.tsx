@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FanStatusStrip } from "./FanStatusStrip";
 import { render } from "../../testing/render";
+import { makeSpark } from "../../testing/fixtures";
 import type { FleetFanStatus } from "../../api/types";
 
 function fan(overrides: Partial<FleetFanStatus> = {}): FleetFanStatus {
@@ -99,5 +100,43 @@ describe("FanStatusStrip states", () => {
     expect(container.textContent).toContain("Fleet Power");
     expect(container.textContent).toContain("Power meter unreachable: ECONNREFUSED");
     expect(container.textContent).not.toContain("RPM");
+  });
+
+  it("groups plug watts per head/worker cluster", () => {
+    const head = (id: string, name: string) => ({ ...makeSpark(id), name, role: "head" as const });
+    const worker = (id: string, name: string, headId: string) => ({
+      ...makeSpark(id),
+      name,
+      role: "worker" as const,
+      workerHeadId: headId,
+    });
+    const sparks = [
+      head("gx10-91", "GX10 91"),
+      worker("gx10-92", "GX10 92", "gx10-91"),
+      worker("gx10-93", "GX10 93", "gx10-91"),
+      head("gx10-95", "GX10 95"),
+      worker("gx10-96", "GX10 96", "gx10-95"),
+    ];
+    const plug = (watts: number) => ({ watts, relayOn: true, kwhToday: 0.01, cycling: false, ok: true });
+    const power = {
+      online: true,
+      totalWatts: 200,
+      kwhToday: 0.4,
+      kwhMonth: 0.4,
+      plugs: {
+        "gx10-91": plug(60),
+        "gx10-92": plug(40),
+        "gx10-93": plug(50),
+        "gx10-95": plug(30),
+        "gx10-96": plug(20),
+      },
+      fetchedAt: Date.now(),
+      error: null,
+    };
+    const { container } = render(<FanStatusStrip power={power} sparks={sparks} />);
+    expect(container.textContent).toContain("GX10 91");
+    expect(container.textContent).toContain("150 W");
+    expect(container.textContent).toContain("GX10 95");
+    expect(container.textContent).toContain("50 W");
   });
 });
