@@ -35,8 +35,12 @@ const DEFAULTS = Object.freeze({
    * does not want it can turn it off here (see the README's settings table).
    */
   benchShareImage: true,
-  /** Overview grid card columns on large screens (1–6; 3 = legacy layout). */
-  overviewColumns: 3,
+  /**
+   * Overview fleet fan & power card (shown when a fan daemon / power meter is
+   * configured via env). On by default — the env URLs are already the opt-in;
+   * this setting only hides the card.
+   */
+  showFleetCard: true,
 });
 
 /** @type {typeof DEFAULTS} */
@@ -60,6 +64,7 @@ function _clampSettings(settings) {
   s.showFleetEnergy = Boolean(s.showFleetEnergy);
   s.showFleetExceptions = Boolean(s.showFleetExceptions);
   s.showOverviewSearch = Boolean(s.showOverviewSearch);
+  s.showFleetCard = Boolean(s.showFleetCard);
   // Ensure temperatureUnit is valid
   if (s.temperatureUnit !== "celsius" && s.temperatureUnit !== "fahrenheit") {
     s.temperatureUnit = DEFAULTS.temperatureUnit;

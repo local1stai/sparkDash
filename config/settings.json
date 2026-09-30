@@ -10,5 +10,6 @@
   "showFleetExceptions": false,
   "showOverviewSearch": false,
   "overviewColumns": 4,
-  "benchShareImage": true
+  "benchShareImage": false,
+  "showFleetCard": true
 }

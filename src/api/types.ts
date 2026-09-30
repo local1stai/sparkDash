@@ -613,6 +613,8 @@ export interface Settings {
   showFleetExceptions: boolean;
   /** Overview search field + status filter. Off by default. */
   showOverviewSearch: boolean;
+  /** Overview fleet fan & power card (env-gated features; hides the card). On by default. */
+  showFleetCard: boolean;
   /** Overview grid card columns on large screens (1–6; 3 = legacy layout). */
   overviewColumns: number;
   /** Benchmark dialogs offer "Copy image" — a PNG share card of the results. */

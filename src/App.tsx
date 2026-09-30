@@ -360,6 +360,7 @@ function DashboardApp() {
               overviewColumns={settings?.overviewColumns ?? 3}
               fan={fan}
               power={power}
+              showFleetCard={settings?.showFleetCard !== false}
               onSelectSpark={navigate}
             />
           ) : displayActive ? (
