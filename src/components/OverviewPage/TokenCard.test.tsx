@@ -97,6 +97,33 @@ describe("TokenCard", () => {
     expect(last.title).toContain("GX10 95: 500.0k");
   });
 
+  it("clicking a head chip focuses that head's chart", async () => {
+    fetchTok.mockResolvedValue(tokens());
+    const { container } = render(<TokenCard />);
+    await flush();
+    const chip = [...container.querySelectorAll("button")].find((b) =>
+      b.textContent?.includes("GX10 95")
+    );
+    chip?.click();
+    await flush();
+    const columns = [...container.querySelectorAll('[aria-label*="tokens generated per"] > span')];
+    expect(columns.length).toBe(24); // Day default, hourly
+    const last = columns[columns.length - 1] as HTMLElement;
+    expect(last.title).toContain("GX10 95 ·");
+    expect(last.title).toContain("500.0k tokens");
+    expect(last.title).not.toContain("GX10 91");
+    // Clicking the Fleet number clears the focus.
+    const fleetBtn = [...container.querySelectorAll("button")].find((b) =>
+      b.querySelector("div")?.textContent === "Fleet"
+    );
+    fleetBtn?.click();
+    await flush();
+    const cleared = [
+      ...container.querySelectorAll('[aria-label*="tokens generated per"] > span'),
+    ] as HTMLElement[];
+    expect(cleared[cleared.length - 1].title).not.toContain("GX10 95 ·");
+  });
+
   it("hides itself while no data has loaded", async () => {
     fetchTok.mockRejectedValue(new Error("not running"));
     const { container } = render(<TokenCard />);

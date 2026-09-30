@@ -31,6 +31,8 @@ export function TokenCard() {
   const [data, setData] = useState<TokensResponse | null>(null);
   const [win, setWin] = useState<WindowKey>("today");
   const [byHead, setByHead] = useState(false);
+  /** Head id whose series the chart focuses on (null = fleet/stacked). */
+  const [focus, setFocus] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,20 +92,34 @@ export function TokenCard() {
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
-        <div>
+        <button
+          type="button"
+          onClick={() => setFocus(null)}
+          title="Fleet-wide — click a head to chart it alone"
+          className="text-left"
+        >
           <div className="text-[10px] text-muted">Fleet</div>
           <strong className="font-tabular text-sm">{fmt(data.fleet[win])}</strong>
-        </div>
-        {heads.map((h) => (
-          <span
-            key={h.id}
-            title={`${h.name ?? h.id} — day ${fmt(h.today)} · week ${fmt(h.week)} · month ${fmt(h.month)} · all ${fmt(h.all)}`}
-            className="rounded border border-border bg-surface-elevated px-2 py-0.5 text-[10px] text-muted"
-          >
-            {h.name ?? h.id}{" "}
-            <strong className="font-tabular text-text">{fmt(h[win])}</strong>
-          </span>
-        ))}
+        </button>
+        {heads.map((h) => {
+          const focused = focus === h.id;
+          return (
+            <button
+              key={h.id}
+              type="button"
+              onClick={() => setFocus(focused ? null : h.id)}
+              title={`${h.name ?? h.id} — day ${fmt(h.today)} · week ${fmt(h.week)} · month ${fmt(h.month)} · all ${fmt(h.all)}\nClick to chart this head alone`}
+              className={`rounded border px-2 py-0.5 text-[10px] transition-colors ${
+                focused
+                  ? "border-accent/60 bg-accent/15 text-text"
+                  : "border-border bg-surface-elevated text-muted hover:bg-surface-hover"
+              }`}
+            >
+              {h.name ?? h.id}{" "}
+              <strong className="font-tabular text-text">{fmt(h[win])}</strong>
+            </button>
+          );
+        })}
       </div>
       <div
         className="mt-3 flex h-12 items-end gap-px"
@@ -115,19 +131,19 @@ export function TokenCard() {
       >
         {(() => {
           const hourly = win === "today";
-          // Column series: fleet-combined, or one series per head (stacked).
-          const seriesHeads = byHead ? data.heads : [];
           const fleet = hourly ? (data.hourly ?? []) : (data.daily ?? []);
-          if (!hourly && fleet.length === 0) return null;
-          if (hourly && fleet.length === 0) return null;
-          const max = Math.max(
-            1,
-            ...fleet.map((_, i) =>
-              byHead
-                ? data.heads.reduce((sum, h) => sum + ((hourly ? h.hourly : h.daily)?.[i]?.tokens ?? 0), 0)
-                : fleet[i].tokens
-            )
-          );
+          if (fleet.length === 0) return null;
+          const seriesOf = (h: (typeof data.heads)[number]) => (hourly ? h.hourly : h.daily) ?? [];
+          const focusedIndex = focus != null ? data.heads.findIndex((h) => h.id === focus) : -1;
+          const focusedHead = focusedIndex >= 0 ? data.heads[focusedIndex] : undefined;
+          const stackHeads = byHead && !focusedHead ? data.heads : [];
+          const valueAt = (i: number): number =>
+            focusedHead
+              ? seriesOf(focusedHead)[i]?.tokens ?? 0
+              : stackHeads.length > 0
+                ? stackHeads.reduce((sum, h) => sum + (seriesOf(h)[i]?.tokens ?? 0), 0)
+                : fleet[i].tokens;
+          const max = Math.max(1, ...fleet.map((_, i) => valueAt(i)));
           return fleet.map((entry, i) => {
             const label = hourly
               ? new Date(`${(entry as { hour: string }).hour}:00:00Z`).toLocaleTimeString(undefined, {
@@ -139,44 +155,43 @@ export function TokenCard() {
                   day: "numeric",
                 });
             const key = hourly ? (entry as { hour: string }).hour : (entry as { day: string }).day;
-            const perHead = seriesHeads.map((h) => ({
-              id: h.id,
-              name: h.name ?? h.id,
-              tokens: (hourly ? h.hourly : h.daily)?.[i]?.tokens ?? 0,
-            }));
-            const total = byHead
-              ? perHead.reduce((sum, p) => sum + p.tokens, 0)
-              : entry.tokens;
+            const total = valueAt(i);
+            const title =
+              total === 0
+                ? `${label} — no tokens`
+                : focusedHead
+                  ? `${focusedHead.name ?? focusedHead.id} · ${label} · ${fmt(total)} tokens`
+                  : stackHeads.length > 0
+                    ? `${label} · ${fmt(total)} tokens — ${stackHeads
+                        .map((h) => ({ name: h.name ?? h.id, tokens: seriesOf(h)[i]?.tokens ?? 0 }))
+                        .filter((p) => p.tokens > 0)
+                        .map((p) => `${p.name}: ${fmt(p.tokens)}`)
+                        .join(", ")}`
+                    : `${label} · ${fmt(total)} tokens`;
             return (
               <span
                 key={key}
                 className="flex min-w-0 flex-1 flex-col-reverse justify-start"
                 style={{ height: total === 0 ? 0 : `${Math.max(4, (total / max) * 100)}%` }}
-                title={
-                  total === 0
-                    ? `${label} — no tokens`
-                    : byHead
-                      ? `${label} · ${fmt(total)} tokens — ${perHead
-                          .filter((p) => p.tokens > 0)
-                          .map((p) => `${p.name}: ${fmt(p.tokens)}`)
-                          .join(", ")}`
-                      : `${label} · ${fmt(total)} tokens`
-                }
+                title={title}
               >
-                {byHead &&
-                  perHead.map((p, idx) => (
+                {focusedHead ? (
+                  <span
+                    className={`flex-1 ${HEAD_SHADES[focusedIndex % HEAD_SHADES.length]}`}
+                  />
+                ) : stackHeads.length > 0 ? (
+                  stackHeads.map((h, idx) => (
                     <span
-                      key={p.id}
+                      key={h.id}
                       className={HEAD_SHADES[idx % HEAD_SHADES.length]}
                       style={{
-                        height:
-                          total === 0
-                            ? 0
-                            : `${(p.tokens / Math.max(1, total)) * 100}%`,
+                        height: total === 0 ? 0 : `${((seriesOf(h)[i]?.tokens ?? 0) / Math.max(1, total)) * 100}%`,
                       }}
                     />
-                  ))}
-                {!byHead && <span className="flex-1 bg-accent/60" />}
+                  ))
+                ) : (
+                  <span className="flex-1 bg-accent/60" />
+                )}
               </span>
             );
           });
