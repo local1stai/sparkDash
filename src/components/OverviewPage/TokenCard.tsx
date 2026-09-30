@@ -18,6 +18,9 @@ function fmt(n: number): string {
   return String(n);
 }
 
+/** Stacked-bar shades, one per head (first head = accent). */
+const HEAD_SHADES = ["bg-accent/60", "bg-warning/70", "bg-success/70", "bg-danger/60"];
+
 /**
  * Tokens generated per head + fleet, by day / week / month / all time.
  * Exact counts: the LLM engines' cumulative counters, delta-tracked
@@ -27,6 +30,7 @@ function fmt(n: number): string {
 export function TokenCard() {
   const [data, setData] = useState<TokensResponse | null>(null);
   const [win, setWin] = useState<WindowKey>("today");
+  const [byHead, setByHead] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,6 +75,18 @@ export function TokenCard() {
               {w.label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setByHead((v) => !v)}
+            title={byHead ? "Show the fleet combined" : "Stack bars per head"}
+            className={`rounded px-2.5 py-1 text-[10px] font-medium transition-colors ${
+              byHead
+                ? "bg-accent text-white"
+                : "border border-border bg-surface-elevated text-muted hover:bg-surface-hover"
+            }`}
+          >
+            {byHead ? "By head" : "Combined"}
+          </button>
         </div>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -91,27 +107,80 @@ export function TokenCard() {
       </div>
       <div
         className="mt-3 flex h-12 items-end gap-px"
-        aria-label="Fleet tokens generated per day for the last 30 days"
+        aria-label={
+          win === "today"
+            ? "Fleet tokens generated per hour over the last 24 hours"
+            : "Fleet tokens generated per day for the last 30 days"
+        }
       >
-        {(data.daily ?? []).length > 0 &&
-          (() => {
-            const daily = data.daily ?? [];
-            const max = Math.max(1, ...daily.map((x) => x.tokens));
-            return daily.map((d) => {
-              const label = new Date(`${d.day}T00:00:00Z`).toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-              });
-              return (
-                <span
-                  key={d.day}
-                  className="min-w-0 flex-1 bg-accent/60"
-                  style={{ height: d.tokens === 0 ? 0 : `${Math.max(4, (d.tokens / max) * 100)}%` }}
-                  title={d.tokens === 0 ? `${label} — no tokens` : `${label} · ${fmt(d.tokens)} tokens`}
-                />
-              );
-            });
-          })()}
+        {(() => {
+          const hourly = win === "today";
+          // Column series: fleet-combined, or one series per head (stacked).
+          const seriesHeads = byHead ? data.heads : [];
+          const fleet = hourly ? (data.hourly ?? []) : (data.daily ?? []);
+          if (!hourly && fleet.length === 0) return null;
+          if (hourly && fleet.length === 0) return null;
+          const max = Math.max(
+            1,
+            ...fleet.map((_, i) =>
+              byHead
+                ? data.heads.reduce((sum, h) => sum + ((hourly ? h.hourly : h.daily)?.[i]?.tokens ?? 0), 0)
+                : fleet[i].tokens
+            )
+          );
+          return fleet.map((entry, i) => {
+            const label = hourly
+              ? new Date(`${(entry as { hour: string }).hour}:00:00Z`).toLocaleTimeString(undefined, {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : new Date(`${(entry as { day: string }).day}T00:00:00Z`).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                });
+            const key = hourly ? (entry as { hour: string }).hour : (entry as { day: string }).day;
+            const perHead = seriesHeads.map((h) => ({
+              id: h.id,
+              name: h.name ?? h.id,
+              tokens: (hourly ? h.hourly : h.daily)?.[i]?.tokens ?? 0,
+            }));
+            const total = byHead
+              ? perHead.reduce((sum, p) => sum + p.tokens, 0)
+              : entry.tokens;
+            return (
+              <span
+                key={key}
+                className="flex min-w-0 flex-1 flex-col-reverse justify-start"
+                style={{ height: total === 0 ? 0 : `${Math.max(4, (total / max) * 100)}%` }}
+                title={
+                  total === 0
+                    ? `${label} — no tokens`
+                    : byHead
+                      ? `${label} · ${fmt(total)} tokens — ${perHead
+                          .filter((p) => p.tokens > 0)
+                          .map((p) => `${p.name}: ${fmt(p.tokens)}`)
+                          .join(", ")}`
+                      : `${label} · ${fmt(total)} tokens`
+                }
+              >
+                {byHead &&
+                  perHead.map((p, idx) => (
+                    <span
+                      key={p.id}
+                      className={HEAD_SHADES[idx % HEAD_SHADES.length]}
+                      style={{
+                        height:
+                          total === 0
+                            ? 0
+                            : `${(p.tokens / Math.max(1, total)) * 100}%`,
+                      }}
+                    />
+                  ))}
+                {!byHead && <span className="flex-1 bg-accent/60" />}
+              </span>
+            );
+          });
+        })()}
       </div>
       {heads.length === 0 && (
         <p className="mt-2 text-[10px] text-muted">

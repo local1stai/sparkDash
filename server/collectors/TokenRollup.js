@@ -21,6 +21,13 @@ function utcDayKey(ms) {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+function utcHourKey(ms) {
+  return new Date(ms).toISOString().slice(0, 13); // YYYY-MM-DDTHH
+}
+
+/** Hours of hourly buckets to retain (2 days — the Day chart needs 24). */
+const HOUR_RETENTION = 48;
+
 function dayKeysAgo(days, nowMs) {
   // Inclusive of today: 1 -> [today], 7 -> [today-6 .. today]
   const keys = [];
@@ -43,6 +50,8 @@ export class TokenRollup {
     this._filePath = filePath;
     /** @type {Record<string, Record<string, number>>} UTC day -> headId -> tokens */
     this._days = {};
+    /** @type {Record<string, Record<string, number>>} UTC hour -> headId -> tokens (short retention) */
+    this._hours = {};
     /** @type {Record<string, number>} headId -> last cumulative counter */
     this._lastCounters = {};
     /** @type {Set<string>} heads with a counter observed (for zero rows) */
@@ -70,6 +79,16 @@ export class TokenRollup {
           if (isNonNegativeSafeInteger(counter)) this._lastCounters[headId] = counter;
         }
       }
+      if (raw && typeof raw === "object" && raw.hours && typeof raw.hours === "object") {
+        for (const [hour, heads] of Object.entries(raw.hours)) {
+          if (!heads || typeof heads !== "object") continue;
+          const clean = {};
+          for (const [headId, tokens] of Object.entries(heads)) {
+            if (isNonNegativeSafeInteger(tokens)) clean[headId] = tokens;
+          }
+          this._hours[hour] = clean;
+        }
+      }
     } catch (err) {
       if (err.code !== "ENOENT") {
         console.error("[token-rollup] failed to load, starting fresh:", err.message);
@@ -82,7 +101,11 @@ export class TokenRollup {
     try {
       atomicWrite(
         this._filePath,
-        JSON.stringify({ version: 2, days: this._days, lastCounters: this._lastCounters }, null, 2) + "\n",
+        JSON.stringify(
+          { version: 3, days: this._days, hours: this._hours, lastCounters: this._lastCounters },
+          null,
+          2
+        ) + "\n",
         0o644
       );
       this._dirty = false;
@@ -98,6 +121,7 @@ export class TokenRollup {
    */
   observe(snapshots, atMs = Date.now()) {
     const day = (this._days[utcDayKey(atMs)] ||= {});
+    const hour = (this._hours[utcHourKey(atMs)] ||= {});
     for (const snap of snapshots) {
       if (!snap || snap.role !== "head") continue;
       const entries = snap?.metrics?.llm;
@@ -113,7 +137,9 @@ export class TokenRollup {
       this._heads.add(snap.id);
       const last = this._lastCounters[snap.id];
       if (last != null && total > last) {
-        day[snap.id] = (day[snap.id] ?? 0) + (total - last);
+        const delta = total - last;
+        day[snap.id] = (day[snap.id] ?? 0) + delta;
+        hour[snap.id] = (hour[snap.id] ?? 0) + delta; // hourly feeds the Day chart
         this._dirty = true;
       }
       // Also updated on reset/equal — rebases the baseline either way. The
@@ -163,17 +189,52 @@ export class TokenRollup {
    * Days without a bucket report 0, so the series is gap-free for charts.
    * @param {number} days
    * @param {number} nowMs
+   * @param {string} [headId] restrict to one head (fleet sum otherwise)
    * @returns {{ day: string, tokens: number }[]}
    */
-  dailySeries(days = 30, nowMs = Date.now()) {
+  dailySeries(days = 30, nowMs = Date.now(), headId) {
     return dayKeysAgo(days, nowMs).map((day) => {
       const heads = this._days[day];
       let tokens = 0;
       if (heads) {
-        for (const value of Object.values(heads)) tokens += value;
+        if (headId != null) tokens = heads[headId] ?? 0;
+        else for (const value of Object.values(heads)) tokens += value;
       }
       return { day, tokens };
     });
+  }
+
+  /**
+   * Fleet tokens per UTC hour for the trailing `hours` hours (now included).
+   * Gap-free like dailySeries. Also prunes stale hour buckets (retention is
+   * short — hours only feed the Day chart; days carry the long history).
+   * @param {number} hours
+   * @param {number} nowMs
+   * @returns {{ hour: string, tokens: number }[]}
+   */
+  hourlySeries(hours = 24, nowMs = Date.now(), headId) {
+    this._pruneHours(nowMs);
+    const keys = [];
+    const startHour = Math.floor(nowMs / 3_600_000) - (hours - 1);
+    for (let i = 0; i < hours; i += 1) {
+      keys.push(new Date((startHour + i) * 3_600_000).toISOString().slice(0, 13));
+    }
+    return keys.map((hour) => {
+      const heads = this._hours[hour];
+      let tokens = 0;
+      if (heads) {
+        if (headId != null) tokens = heads[headId] ?? 0;
+        else for (const value of Object.values(heads)) tokens += value;
+      }
+      return { hour, tokens };
+    });
+  }
+
+  _pruneHours(nowMs) {
+    const cutoff = utcHourKey(nowMs - HOUR_RETENTION * 3_600_000);
+    for (const key of Object.keys(this._hours)) {
+      if (key < cutoff) delete this._hours[key];
+    }
   }
 
   /** @param {() => object[]} getSnapshots live monitor snapshots */

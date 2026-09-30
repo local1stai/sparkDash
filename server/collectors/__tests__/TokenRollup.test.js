@@ -84,6 +84,38 @@ test("dailySeries is gap-free over the trailing window", () => {
   ]);
 });
 
+test("hourlySeries is gap-free and prunes stale buckets", () => {
+  const rollup = new TokenRollup({ filePath: "/dev/null" });
+  const now = Date.UTC(2026, 8, 30, 12, 0, 0);
+  rollup._hours["2026-09-30T10"] = { h1: 400 };
+  rollup._hours["2026-09-01T00"] = { h1: 9_999 }; // ancient — must be pruned
+  const series = rollup.hourlySeries(3, now);
+  assert.deepEqual(series, [
+    { hour: "2026-09-30T10", tokens: 400 },
+    { hour: "2026-09-30T11", tokens: 0 },
+    { hour: "2026-09-30T12", tokens: 0 },
+  ]);
+  assert.equal("2026-09-01T00" in rollup._hours, false);
+});
+
+test("observe dual-writes deltas into the current day and hour buckets", () => {
+  const rollup = new TokenRollup({ filePath: "/dev/null" });
+  const at = Date.UTC(2026, 8, 30, 12, 3, 0);
+  rollup.observe([headSnap("h1", 100)], at);
+  rollup.observe([headSnap("h1", 350)], at + 5_000);
+  assert.equal(rollup._days["2026-09-30"].h1, 250);
+  assert.equal(rollup._hours["2026-09-30T12"].h1, 250);
+});
+
+test("series filter to a single head sums only that head", () => {
+  const rollup = new TokenRollup({ filePath: "/dev/null" });
+  rollup._days["2026-09-30"] = { h1: 300, h2: 500 };
+  const now = Date.UTC(2026, 8, 30, 12, 0, 0);
+  assert.equal(rollup.dailySeries(1, now)[0].tokens, 800);
+  assert.equal(rollup.dailySeries(1, now, "h1")[0].tokens, 300);
+  assert.equal(rollup.dailySeries(1, now, "missing")[0].tokens, 0);
+});
+
 test("persists day buckets and reloads them", async (t) => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "token-rollup-"));
   const filePath = path.join(tmp, "token-rollup.json");

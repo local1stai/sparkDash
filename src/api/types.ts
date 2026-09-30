@@ -607,9 +607,17 @@ export interface TokenWindows {
 /** GET /api/tokens — exact counter-delta token totals (TokenRollup). */
 export interface TokensResponse {
   fleet: TokenWindows;
-  heads: (TokenWindows & { id: string; name: string | null })[];
+  heads: (TokenWindows & {
+    id: string;
+    name: string | null;
+    /** This head's own series (same shapes as the fleet's). */
+    daily: { day: string; tokens: number }[];
+    hourly: { hour: string; tokens: number }[];
+  })[];
   /** Fleet tokens per UTC day, trailing 30 days (gap-free, zeros included). */
   daily: { day: string; tokens: number }[];
+  /** Fleet tokens per UTC hour, trailing 24 hours (for the Day chart). */
+  hourly: { hour: string; tokens: number }[];
 }
 
 // ─── API responses ────────────────────────────────────────
