@@ -158,6 +158,24 @@ export class TokenRollup {
     return { fleet, perHead };
   }
 
+  /**
+   * Fleet tokens per UTC day for the trailing `days` days (today included).
+   * Days without a bucket report 0, so the series is gap-free for charts.
+   * @param {number} days
+   * @param {number} nowMs
+   * @returns {{ day: string, tokens: number }[]}
+   */
+  dailySeries(days = 30, nowMs = Date.now()) {
+    return dayKeysAgo(days, nowMs).map((day) => {
+      const heads = this._days[day];
+      let tokens = 0;
+      if (heads) {
+        for (const value of Object.values(heads)) tokens += value;
+      }
+      return { day, tokens };
+    });
+  }
+
   /** @param {() => object[]} getSnapshots live monitor snapshots */
   start(getSnapshots, { intervalMs = 5_000, setIntervalFn = setInterval } = {}) {
     if (this._timer) return;

@@ -72,6 +72,18 @@ test("workers and unavailable entries are ignored", () => {
   assert.equal(rollup.totals(now + 6000).fleet.today, 1000);
 });
 
+test("dailySeries is gap-free over the trailing window", () => {
+  const rollup = new TokenRollup({ filePath: "/dev/null" });
+  rollup._days["2026-09-28"] = { h1: 100 };
+  const now = Date.UTC(2026, 8, 30, 12, 0, 0); // 2026-09-30
+  const series = rollup.dailySeries(3, now);
+  assert.deepEqual(series, [
+    { day: "2026-09-28", tokens: 100 },
+    { day: "2026-09-29", tokens: 0 },
+    { day: "2026-09-30", tokens: 0 },
+  ]);
+});
+
 test("persists day buckets and reloads them", async (t) => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), "token-rollup-"));
   const filePath = path.join(tmp, "token-rollup.json");

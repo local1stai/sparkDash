@@ -17,6 +17,10 @@ function tokens(): import("../../api/types").TokensResponse {
       { id: "gx10-91", name: "GX10 91", today: 1_000_000, week: 6_000_000, month: 25_000_000, all: 60_000_000 },
       { id: "gx10-95", name: "GX10 95", today: 500_000, week: 3_000_000, month: 15_000_000, all: 40_000_000 },
     ],
+    daily: Array.from({ length: 30 }, (_, i) => ({
+      day: `2026-09-${String(i + 1).padStart(2, "0")}`,
+      tokens: i === 29 ? 1_500_000 : i % 3 === 0 ? 0 : 100_000 * (i + 1),
+    })),
   };
 }
 

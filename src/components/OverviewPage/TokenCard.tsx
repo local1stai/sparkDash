@@ -89,6 +89,30 @@ export function TokenCard() {
           </span>
         ))}
       </div>
+      <div
+        className="mt-3 flex h-12 items-end gap-px"
+        aria-label="Fleet tokens generated per day for the last 30 days"
+      >
+        {(data.daily ?? []).length > 0 &&
+          (() => {
+            const daily = data.daily ?? [];
+            const max = Math.max(1, ...daily.map((x) => x.tokens));
+            return daily.map((d) => {
+              const label = new Date(`${d.day}T00:00:00Z`).toLocaleDateString(undefined, {
+                month: "short",
+                day: "numeric",
+              });
+              return (
+                <span
+                  key={d.day}
+                  className="min-w-0 flex-1 bg-accent/60"
+                  style={{ height: d.tokens === 0 ? 0 : `${Math.max(4, (d.tokens / max) * 100)}%` }}
+                  title={d.tokens === 0 ? `${label} — no tokens` : `${label} · ${fmt(d.tokens)} tokens`}
+                />
+              );
+            });
+          })()}
+      </div>
       {heads.length === 0 && (
         <p className="mt-2 text-[10px] text-muted">
           No LLM token counters observed yet — heads appear once their engines serve requests.

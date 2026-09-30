@@ -386,6 +386,7 @@ app.get("/api/tokens", (_req, res) => {
       name: registry.getSpark(id)?.name ?? null,
       ...windows,
     })),
+    daily: tokenRollup.dailySeries(30),
   });
 });
 

@@ -608,6 +608,8 @@ export interface TokenWindows {
 export interface TokensResponse {
   fleet: TokenWindows;
   heads: (TokenWindows & { id: string; name: string | null })[];
+  /** Fleet tokens per UTC day, trailing 30 days (gap-free, zeros included). */
+  daily: { day: string; tokens: number }[];
 }
 
 // ─── API responses ────────────────────────────────────────
