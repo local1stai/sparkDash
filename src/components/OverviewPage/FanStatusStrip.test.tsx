@@ -73,8 +73,8 @@ describe("FanStatusStrip states", () => {
       kwhToday: 0.42,
       kwhMonth: null,
       plugs: {
-        "gx10-91": { watts: 60.7, relayOn: true, kwhToday: 0.03, cycling: false, ok: true },
-        "gx10-92": { watts: 42.1, relayOn: true, kwhToday: 0.02, cycling: false, ok: true },
+        "gx10-91": { watts: 60.7, relayOn: true, kwhToday: 0.03, kwhMonth: 0.03, cycling: false, ok: true },
+        "gx10-92": { watts: 42.1, relayOn: true, kwhToday: 0.02, kwhMonth: 0.02, cycling: false, ok: true },
       },
       fetchedAt: Date.now(),
       error: null,
@@ -117,18 +117,25 @@ describe("FanStatusStrip states", () => {
       head("gx10-95", "GX10 95"),
       worker("gx10-96", "GX10 96", "gx10-95"),
     ];
-    const plug = (watts: number) => ({ watts, relayOn: true, kwhToday: 0.01, cycling: false, ok: true });
+    const plug = (watts: number, kwhToday: number) => ({
+      watts,
+      relayOn: true,
+      kwhToday,
+      kwhMonth: kwhToday * 2,
+      cycling: false,
+      ok: true,
+    });
     const power = {
       online: true,
       totalWatts: 200,
       kwhToday: 0.4,
       kwhMonth: 0.4,
       plugs: {
-        "gx10-91": plug(60),
-        "gx10-92": plug(40),
-        "gx10-93": plug(50),
-        "gx10-95": plug(30),
-        "gx10-96": plug(20),
+        "gx10-91": plug(60, 0.1),
+        "gx10-92": plug(40, 0.05),
+        "gx10-93": plug(50, 0.05),
+        "gx10-95": plug(30, 0.1),
+        "gx10-96": plug(20, 0.1),
       },
       fetchedAt: Date.now(),
       error: null,
@@ -136,6 +143,8 @@ describe("FanStatusStrip states", () => {
     const { container } = render(<FanStatusStrip power={power} sparks={sparks} />);
     expect(container.textContent).toContain("GX10 91");
     expect(container.textContent).toContain("150 W");
+    expect(container.textContent).toContain("0.20 today");
+    expect(container.textContent).toContain("0.40 month");
     expect(container.textContent).toContain("GX10 95");
     expect(container.textContent).toContain("50 W");
   });

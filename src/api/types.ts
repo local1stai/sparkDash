@@ -575,6 +575,7 @@ export interface FleetPlugStatus {
   watts: number | null;
   relayOn: boolean | null;
   kwhToday: number | null;
+  kwhMonth: number | null;
   cycling: boolean;
   ok: boolean;
 }

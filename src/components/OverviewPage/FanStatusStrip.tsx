@@ -62,11 +62,37 @@ export function FanStatusStrip({
   const clusters = useMemo(() => {
     if (!power?.online || sparks.length === 0) return [];
     const known = new Set(sparks.map((s) => s.id));
-    const wattsOf = (id: string): number | null => {
-      const w = power.plugs[id]?.watts;
-      return w != null ? w : null;
+    const sum = (
+      ids: string[],
+      sel: (p: { watts: number | null; kwhToday: number | null; kwhMonth: number | null }) => number | null
+    ): number | null => {
+      const vals = ids
+        .map((id) => (power.plugs[id] ? sel(power.plugs[id]) : null))
+        .filter((v): v is number => v != null);
+      return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
     };
-    const groups: { key: string; name: string; watts: number | null; members: string[] }[] = [];
+    const summarize = (ids: string[], members: SparkSnapshot[]) => {
+      const watts = sum(ids, (p) => p.watts);
+      return {
+        watts: watts != null ? Math.round(watts) : null,
+        kwhToday: sum(ids, (p) => p.kwhToday),
+        kwhMonth: sum(ids, (p) => p.kwhMonth),
+        members: members.map(
+          (m) =>
+            `${m.name ?? m.id}: ${power.plugs[m.id]?.watts ?? "?"} W · ${
+              power.plugs[m.id]?.kwhToday ?? "?"
+            } kWh today`
+        ),
+      };
+    };
+    const groups: {
+      key: string;
+      name: string;
+      watts: number | null;
+      kwhToday: number | null;
+      kwhMonth: number | null;
+      members: string[];
+    }[] = [];
     const orphanWorkers = sparks.filter(
       (s) => resolveSparkRole(s) === "worker" && (!s.workerHeadId || !known.has(s.workerHeadId))
     );
@@ -75,24 +101,17 @@ export function FanStatusStrip({
         head,
         ...sparks.filter((s) => s.workerHeadId === head.id && resolveSparkRole(s) === "worker"),
       ];
-      const vals = members.map((m) => wattsOf(m.id)).filter((w): w is number => w != null);
-      groups.push({
-        key: head.id,
-        name: head.name ?? head.id,
-        watts: vals.length ? Math.round(vals.reduce((a, b) => a + b, 0)) : null,
-        members: members.map((m) => `${m.name ?? m.id}: ${wattsOf(m.id) ?? "?"} W`),
-      });
+      groups.push({ key: head.id, name: head.name ?? head.id, ...summarize(members.map((m) => m.id), members) });
     }
     if (orphanWorkers.length > 0) {
-      const vals = orphanWorkers.map((m) => wattsOf(m.id)).filter((w): w is number => w != null);
       groups.push({
         key: "__ungrouped__",
         name: "Ungrouped",
-        watts: vals.length ? Math.round(vals.reduce((a, b) => a + b, 0)) : null,
-        members: orphanWorkers.map((m) => `${m.name ?? m.id}: ${wattsOf(m.id) ?? "?"} W`),
+        ...summarize(orphanWorkers.map((m) => m.id), orphanWorkers),
       });
     }
-    const hasGrouping = groups.some((g) => g.key !== "__ungrouped__") && sparks.some((s) => s.workerHeadId);
+    const hasGrouping =
+      groups.some((g) => g.key !== "__ungrouped__") && sparks.some((s) => s.workerHeadId);
     return hasGrouping ? groups : [];
   }, [power, sparks]);
 
@@ -132,7 +151,24 @@ export function FanStatusStrip({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
-        {power && (
+        {fan && (
+          <>
+            <div className="flex items-center gap-2">
+              <div>
+                <div className="text-[10px] text-muted">RPM</div>
+                <strong className="font-tabular text-sm">{num(fan.rpm)}</strong>
+              </div>
+              <Sparkline data={rpmTrend} width={160} height={28} />
+            </div>
+            <div>
+              <div className="text-[10px] text-muted">Duty</div>
+              <strong className="font-tabular text-sm">{pct(dutyNow)}</strong>
+              {targetNote != null && (
+                <span className="ml-1 text-[10px] text-muted">(target {targetNote})</span>
+              )}
+            </div>
+          </>
+        )}        {power && (
           <>
             <div>
               <div className="text-[10px] text-muted">Fleet power</div>
@@ -170,30 +206,25 @@ export function FanStatusStrip({
                     <strong className="font-tabular text-text">
                       {c.watts != null ? `${c.watts} W` : "—"}
                     </strong>
+                    {c.kwhToday != null && (
+                      <>
+                        {" · "}
+                        <strong className="font-tabular text-text">{c.kwhToday.toFixed(2)}</strong> today
+                      </>
+                    )}
+                    {c.kwhMonth != null && (
+                      <>
+                        {" · "}
+                        <strong className="font-tabular text-text">{c.kwhMonth.toFixed(2)}</strong> month
+                      </>
+                    )}
                   </span>
                 ))}
               </div>
             )}
           </>
         )}
-        {fan && (
-          <>
-            <div className="flex items-center gap-2">
-              <div>
-                <div className="text-[10px] text-muted">RPM</div>
-                <strong className="font-tabular text-sm">{num(fan.rpm)}</strong>
-              </div>
-              <Sparkline data={rpmTrend} width={160} height={28} />
-            </div>
-            <div>
-              <div className="text-[10px] text-muted">Duty</div>
-              <strong className="font-tabular text-sm">{pct(dutyNow)}</strong>
-              {targetNote != null && (
-                <span className="ml-1 text-[10px] text-muted">(target {targetNote})</span>
-              )}
-            </div>
-          </>
-        )}
+
       </div>
 
       {anyCycling && (
