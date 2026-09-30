@@ -6,10 +6,11 @@
   "temperatureUnit": "celsius",
   "benchDebugTraces": false,
   "density": "compact",
-  "showFleetEnergy": false,
+  "showFleetEnergy": true,
   "showFleetExceptions": false,
   "showOverviewSearch": false,
   "overviewColumns": 4,
   "benchShareImage": false,
-  "showFleetCard": true
+  "showFleetCard": true,
+  "showTokenCard": true
 }
