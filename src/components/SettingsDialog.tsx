@@ -223,6 +223,34 @@ export function SettingsDialog({ open, onClose, onSaved }: SettingsDialogProps) 
               </label>
             </div>
 
+            {/* Tokens card */}
+            <div>
+              <label className="flex items-start gap-3 text-xs text-muted">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={settings.showTokenCard !== false}
+                  onClick={() => update({ showTokenCard: settings.showTokenCard === false })}
+                  className={`toggle-track relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                    settings.showTokenCard !== false ? "is-on" : ""
+                  }`}
+                >
+                  <span
+                    className={`toggle-dot inline-block h-4 w-4 transform rounded-full shadow transition-transform ${
+                      settings.showTokenCard !== false ? "translate-x-4" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+                <span>
+                  <span className="block text-text">Show tokens generated</span>
+                  <span className="mt-0.5 block text-[10px] leading-snug text-muted">
+                    Overview card with exact generated tokens per head and fleet-wide,
+                    by day / week / month / all time (from the engines’ counters). On by default.
+                  </span>
+                </span>
+              </label>
+            </div>
+
             {/* Benchmark share image */}
             <div>
               <label className="flex items-start gap-3 text-xs text-muted">

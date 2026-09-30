@@ -397,8 +397,8 @@ Gear icon in the header, or `GET`/`PUT` `/api/settings`:
 | Temperature unit | Celsius | Display GPU temperature in °C or °F |
 | Overview columns | 3 | Spark cards per row on large screens (1–6; tablets stay 2, phones 1) |
 | Fleet fan & power card | on | Overview card with rack fan status and wall-metered plug power; only appears when `FAN_STATUS_URL` / `POWER_METER_URL` is configured |
+| Tokens generated | on | Overview card with exact generated tokens per head + fleet by day / week / month / all time |
 | Benchmark share image | true | Decode/prefill **Copy results** becomes a split button: the label copies the text summary, the caret offers **Copy as text** / **Copy as image** on hover or click. Turn it off to keep the plain button. The image copies where the page has an image clipboard (HTTPS or localhost); over plain http on a LAN IP the card downloads instead |
-| Overview columns | 3 | Spark cards per row on large screens (1–6; tablets stay 2, phones 1) |
 
 ### Environment variables
 

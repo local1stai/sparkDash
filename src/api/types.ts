@@ -593,6 +593,19 @@ export interface FleetPowerStatus {
   plugs: Record<string, FleetPlugStatus>;
   fetchedAt: number;
   error: string | null;
+// ─── Token rollups ────────────────────────────────────────
+/** Per-head + fleet generated-token totals for each window. */
+export interface TokenWindows {
+  today: number;
+  week: number;
+  month: number;
+  all: number;
+}
+
+/** GET /api/tokens — exact counter-delta token totals (TokenRollup). */
+export interface TokensResponse {
+  fleet: TokenWindows;
+  heads: (TokenWindows & { id: string; name: string | null })[];
 }
 
 // ─── API responses ────────────────────────────────────────
@@ -619,6 +632,8 @@ export interface Settings {
   overviewColumns: number;
   /** Benchmark dialogs offer "Copy image" — a PNG share card of the results. */
   benchShareImage: boolean;
+  /** Overview tokens-generated card (per head + fleet). On by default. */
+  showTokenCard: boolean;
 }
 
 export interface SparksListResponse {

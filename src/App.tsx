@@ -361,6 +361,7 @@ function DashboardApp() {
               fan={fan}
               power={power}
               showFleetCard={settings?.showFleetCard !== false}
+              showTokenCard={settings?.showTokenCard !== false}
               onSelectSpark={navigate}
             />
           ) : displayActive ? (

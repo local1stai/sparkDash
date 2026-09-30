@@ -47,6 +47,8 @@ import {
 } from "./config.js";
 import { FanStatusProbe } from "./collectors/FanStatusProbe.js";
 import { PowerStatusProbe } from "./collectors/PowerStatusProbe.js";
+import { FLEET_ENERGY_JSON_PATH, TOKENS_JSON_PATH } from "./config.js";
+import { TokenRollup } from "./collectors/TokenRollup.js";
 import { FleetEnergyTracker } from "./energy/FleetEnergyTracker.js";
 import {
   createFleetEnergyRuntime,
@@ -328,6 +330,8 @@ const fanStatusProbe = FAN_STATUS_URL
 const powerStatusProbe = POWER_METER_URL
   ? new PowerStatusProbe(POWER_METER_URL, { intervalMs: POLL_INTERVAL_POWER })
   : null;
+// Exact generated-token rollups per head (cumulative counter deltas).
+const tokenRollup = new TokenRollup({ filePath: TOKENS_JSON_PATH });
 
 // ─── Express app ─────────────────────────────────────────
 const app = express();
@@ -370,6 +374,17 @@ app.get("/api/power", (_req, res) => {
     return res.status(503).json({ error: "Power meter not polled yet" });
   }
   res.json(snapshot);
+// Generated-token totals per head + fleet (today / 7d / 30d / all).
+app.get("/api/tokens", (_req, res) => {
+  const { fleet, perHead } = tokenRollup.totals();
+  res.json({
+    fleet,
+    heads: Object.entries(perHead).map(([id, windows]) => ({
+      id,
+      name: registry.getSpark(id)?.name ?? null,
+      ...windows,
+    })),
+  });
 });
 
 // Never return SSH passwords in any response
@@ -1849,6 +1864,7 @@ if (!startupPreflight.fatal) {
     fleetEnergyRuntime.start();
     fanStatusProbe?.start();
     powerStatusProbe?.start();
+    tokenRollup.start(orderedSnapshots);
   });
 } else {
   process.exitCode = 1;
@@ -1876,6 +1892,11 @@ async function shutdown(signal) {
     llmDaily.flush();
   } catch (err) {
     console.error("[sparkDash] failed to flush LLM daily history:", err.message);
+  }
+  try {
+    tokenRollup.stop();
+  } catch (err) {
+    console.error("[sparkDash] failed to flush token rollup:", err.message);
   }
   const energyPersistenceSucceeded = fleetEnergyRuntime.stop();
   fanStatusProbe?.stop();

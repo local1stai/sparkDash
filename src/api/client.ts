@@ -2,6 +2,7 @@ import type {
   DecodeBenchJob,
   DecodeBenchListResponse,
   FleetEnergy,
+  TokensResponse,
   HermesBatchUpdateResponse,
   HermesUpdatesResponse,
   LlmMetrics,
@@ -51,6 +52,11 @@ export function fetchSparks(): Promise<{ sparks: SparkConfig[] }> {
 
 export function fetchFleetEnergy(): Promise<FleetEnergy> {
   return apiFetch("/api/fleet-energy");
+}
+
+/** Generated-token totals per head + fleet (day / week / month / all). */
+export function fetchTokens(): Promise<TokensResponse> {
+  return apiFetch("/api/tokens");
 }
 
 /** Latest metrics snapshot for one Spark (includes per-port LLM modelId). */

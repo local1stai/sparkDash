@@ -7,6 +7,7 @@ import { MetricBar } from "../ui/MetricBar";
 import { FleetEnergyCard } from "./FleetEnergyCard";
 import { FleetAlertStrip } from "./FleetAlertStrip";
 import { FanStatusStrip } from "./FanStatusStrip";
+import { TokenCard } from "./TokenCard";
 import { ActivityIcon, PowerOffIcon, PowerOnIcon, RotateIcon } from "../ui/icons";
 
 interface OverviewPageProps {
@@ -25,6 +26,8 @@ interface OverviewPageProps {
   power?: FleetPowerStatus | null;
   /** Settings gate for the fan & power card (default on). */
   showFleetCard?: boolean;
+  /** Settings gate for the tokens-generated card (default on). */
+  showTokenCard?: boolean;
   onSelectSpark?: (id: string) => void;
 }
 
@@ -422,6 +425,7 @@ export function OverviewPage({
   fan = null,
   power = null,
   showFleetCard = true,
+  showTokenCard = true,
   onSelectSpark,
 }: OverviewPageProps) {
   const [query, setQuery] = useState("");
@@ -595,6 +599,8 @@ export function OverviewPage({
       {showFleetCard && (fan || power) ? (
         <FanStatusStrip fan={fan} power={power} sparks={sparks} />
       ) : null}
+      {showFleetExceptions ? <FleetAlertStrip sparks={sparks} onSelect={onSelectSpark} /> : null}
+      {showTokenCard ? <TokenCard /> : null}
       <div className="flex flex-wrap items-end justify-between gap-6">
         <h1
           className="font-normal leading-tight tracking-tight text-text-strong"
