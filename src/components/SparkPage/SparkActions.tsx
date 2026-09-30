@@ -77,7 +77,12 @@ export function SparkActions({ spark, onEdit, hasPowerPlug = false, className }:
     setPowerMsg(null);
     try {
       const res = await powerCycleSpark(spark.id);
-      const how = res.mode === "graceful" ? "graceful shutdown" : "hard cut (unreachable)";
+      const how =
+        res.mode === "graceful"
+          ? "graceful shutdown"
+          : online
+            ? "hard cut (unreachable)"
+            : "power-on";
       setPowerMsg({
         text: `Power cycling via ${how} — back in a few minutes`,
         tone: "ok",
@@ -180,11 +185,19 @@ export function SparkActions({ spark, onEdit, hasPowerPlug = false, className }:
             type="button"
             onClick={() => setCycleOpen(true)}
             disabled={powerLoading}
-            title="Graceful shutdown, then power-cycle the smart plug — hard cut if the machine is unreachable"
+            title={
+              online
+                ? "Graceful shutdown, then power-cycle the smart plug — hard cut if the machine is unreachable"
+                : "Briefly cut and restore the plug's power — the node boots automatically"
+            }
             className="flex items-center gap-1.5 rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-[11px] text-muted transition-colors hover:bg-warning/20 hover:text-warning disabled:opacity-50"
           >
-            <RotateIcon className="h-3 w-3" />
-            Power cycle
+            {online ? (
+              <RotateIcon className="h-3 w-3" />
+            ) : (
+              <PowerOnIcon className="h-3 w-3" />
+            )}
+            {online ? "Power cycle" : "Power on"}
           </button>
         )}
         {onEdit && (
@@ -212,13 +225,13 @@ export function SparkActions({ spark, onEdit, hasPowerPlug = false, className }:
         open={cycleOpen}
         onClose={() => setCycleOpen(false)}
         onConfirm={handlePowerCycle}
-        title={`Power cycle ${spark.name}`}
-        description={`Reboot ${spark.name} through its smart plug? ${
+        title={online ? `Power cycle ${spark.name}` : `Power on ${spark.name}`}
+        description={
           online
-            ? "It shuts down gracefully first, then the plug cuts power for ~10 s and the node boots again."
-            : "The node is offline — the plug will hard-cut power for ~10 s and restore it."
-        } Anything unsaved or running is lost on a hard cut.`}
-        confirmLabel="Power cycle"
+            ? `Reboot ${spark.name} through its smart plug? It shuts down gracefully first, then the plug cuts power for ~10 s and the node boots again. Anything unsaved or running is lost if the machine is hung and gets the hard cut.`
+            : `${spark.name} is offline. The plug briefly cuts and restores power (~10 s) and the node boots automatically.`
+        }
+        confirmLabel={online ? "Power cycle" : "Power on"}
       />
     </>
   );
