@@ -21,6 +21,7 @@ test("normalizePowerStatus maps plugs by spark id and totals watts", () => {
   assert.deepEqual(Object.keys(out.plugs), ["gx10-91", "gx10-92", "gx10-93"]);
   assert.equal(out.plugs["gx10-91"].watts, 60.7);
   assert.equal(out.plugs["gx10-91"].relayOn, true);
+  assert.equal(out.plugs["gx10-91"].kwhMonth, 0.03);
   assert.equal(out.plugs["gx10-93"].relayOn, false);
   assert.equal(out.plugs["gx10-91"].cycling, false);
 });

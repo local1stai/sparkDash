@@ -70,6 +70,7 @@ export function normalizePowerStatus(raw) {
       watts,
       relayOn: boolOrNull(entry.relay_on),
       kwhToday: today,
+      kwhMonth: month,
       cycling: Boolean(entry.cycling),
       ok: entry.ok !== false,
     };
