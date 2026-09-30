@@ -589,7 +589,7 @@ export function OverviewPage({
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--density-overview-rhythm)" }}>
       {showFleetEnergy ? <FleetEnergyCard nodeCount={sparks.length} /> : null}
       {showFleetExceptions ? <FleetAlertStrip sparks={sparks} fan={fan} onSelect={onSelectSpark} /> : null}
-      {fan || power ? <FanStatusStrip fan={fan} power={power} /> : null}
+      {fan || power ? <FanStatusStrip fan={fan} power={power} sparks={sparks} /> : null}
       <div className="flex flex-wrap items-end justify-between gap-6">
         <h1
           className="font-normal leading-tight tracking-tight text-text-strong"
