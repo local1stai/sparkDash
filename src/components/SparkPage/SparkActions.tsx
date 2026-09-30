@@ -225,6 +225,7 @@ export function SparkActions({ spark, onEdit, hasPowerPlug = false, className }:
         open={cycleOpen}
         onClose={() => setCycleOpen(false)}
         onConfirm={handlePowerCycle}
+        requirePhrase={null}
         title={online ? `Power cycle ${spark.name}` : `Power on ${spark.name}`}
         description={
           online
