@@ -1463,14 +1463,18 @@ app.delete("/api/sparks/:id/llm/showcase/:sessionId", (req, res) => {
 
 const SHUTDOWN_BIN = "/usr/local/bin/spark-shutdown";
 /**
- * Remote: verify script + passwordless sudo, then background shutdown so SSH
- * returns before the host dies. Failures before backgrounding surface to the UI.
+ * Remote: verify passwordless sudo, then background the shutdown so SSH
+ * returns before the host dies. The host script is preferred; when it is
+ * not installed the shutdown falls back to plain `poweroff`. Failures
+ * before backgrounding surface to the UI.
+ *
+ * NOTE: the backgrounded `&` must be followed by a space, never ";" —
+ * `&;` is a shell syntax error (join("; ") produced exactly that).
  */
 const SHUTDOWN_REMOTE_CMD = [
-  `test -x ${SHUTDOWN_BIN} || { echo "missing ${SHUTDOWN_BIN}" >&2; exit 127; }`,
-  `sudo -n true || { echo "sudo -n required for ${SHUTDOWN_BIN}" >&2; exit 126; }`,
-  `nohup sudo -n ${SHUTDOWN_BIN} >/dev/null 2>&1 &`,
-  `sleep 0.3`,
+  `sudo -n true || { echo "sudo -n required for shutdown" >&2; exit 126; }`,
+  `CMD=$([ -x ${SHUTDOWN_BIN} ] && echo ${SHUTDOWN_BIN} || echo poweroff)`,
+  `nohup sudo -n "$CMD" >/dev/null 2>&1 & sleep 0.3`,
   `exit 0`,
 ].join("; ");
 
@@ -1617,6 +1621,62 @@ app.post("/api/sparks/:id/shutdown", async (req, res) => {
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Power cycle via smart plug (graceful-first) ──────────
+// Requires POWER_METER_URL (a tapoctl-style daemon with per-Spark relays).
+// Online Sparks are shut down gracefully first; the wait is bounded, so a
+// hung machine falls through to a hard relay cycle — the rescue path.
+const POWERCYCLE_GRACE_MS = parseInt(process.env.POWERCYCLE_GRACE_MS || "60000", 10);
+
+function sparkIsOnline(id) {
+  return monitors.get(id)?.snapshot()?.online === true;
+}
+
+async function triggerPlugCycle(sparkId) {
+  const res = await fetch(
+    `${POWER_METER_URL.replace(/\/+$/, "")}/plug/${encodeURIComponent(sparkId)}/cycle`,
+    { method: "POST", signal: AbortSignal.timeout(10_000) }
+  );
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body?.ok) {
+    throw new Error(body?.error || `power daemon replied HTTP ${res.status}`);
+  }
+  return body;
+}
+
+app.post("/api/sparks/:id/powercycle", async (req, res) => {
+  try {
+    const spark = registry.getSpark(req.params.id);
+    if (!spark) return res.status(404).json({ error: "Spark not found" });
+    if (!POWER_METER_URL) {
+      return res.status(503).json({ error: "Power daemon not configured (POWER_METER_URL is unset)" });
+    }
+    if (spark.isLocal) {
+      return res.status(400).json({ error: "The dashboard host has no smart plug" });
+    }
+
+    let mode = sparkIsOnline(spark.id) ? "graceful" : "forced";
+    if (mode === "graceful") {
+      await initiateSparkShutdown(spark).catch((err) => {
+        console.warn(
+          `[powercycle] ${spark.id}: graceful shutdown failed (${err.message}) — cycling anyway`
+        );
+      });
+      const deadline = Date.now() + POWERCYCLE_GRACE_MS;
+      while (Date.now() < deadline && sparkIsOnline(spark.id)) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+      if (sparkIsOnline(spark.id)) {
+        mode = "forced"; // did not go down inside the grace window — hard cut
+      }
+    }
+
+    const cycle = await triggerPlugCycle(spark.id);
+    res.json({ id: spark.id, mode, cycle });
+  } catch (err) {
+    res.status(502).json({ error: err.message || String(err) });
   }
 });
 

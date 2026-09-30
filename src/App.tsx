@@ -367,6 +367,7 @@ function DashboardApp() {
               spark={displayActive}
               temperatureUnit={settings?.temperatureUnit ?? "celsius"}
               benchShareImage={settings?.benchShareImage ?? false}
+              hasPowerPlug={power?.plugs?.[displayActive.id] != null}
               onEdit={() => setEditId(displayActive.id)}
             />
           ) : (

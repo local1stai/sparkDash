@@ -18,6 +18,8 @@ interface SparkPageProps {
   temperatureUnit: "celsius" | "fahrenheit";
   /** Show "Copy image" in the benchmark dialogs (Settings, off by default). */
   benchShareImage?: boolean;
+  /** A smart plug meters this Spark — offer the power-cycle action. */
+  hasPowerPlug?: boolean;
   onEdit?: () => void;
 }
 
@@ -82,6 +84,7 @@ export function SparkPage({
   spark,
   temperatureUnit,
   benchShareImage = false,
+  hasPowerPlug = false,
   onEdit,
 }: SparkPageProps) {
   const { metrics } = spark;
@@ -222,11 +225,12 @@ export function SparkPage({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--density-page-gap)" }}>
-      <SparkHeader spark={spark} onEdit={onEdit} />
+      <SparkHeader spark={spark} onEdit={onEdit} hasPowerPlug={hasPowerPlug} />
       {/* Mobile-only action row (Update Hermes / Shutdown·Wake / Edit) — desktop keeps them in the header. */}
       <SparkActions
         spark={spark}
         onEdit={onEdit}
+        hasPowerPlug={hasPowerPlug}
         className="flex flex-wrap items-center justify-end gap-2 px-1 py-1 sm:hidden"
       />
       <div className="spark-page grid grid-cols-1 md:grid-cols-2" style={{ gap: "var(--density-page-gap)" }}>

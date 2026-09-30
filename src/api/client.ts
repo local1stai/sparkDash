@@ -393,6 +393,15 @@ export interface PowerResult {
   error?: string;
 }
 
+/** Graceful-first power cycle result (smart plug via POWER_METER_URL). */
+export interface PowerCycleResult {
+  id: string;
+  /** graceful = shut down cleanly first; forced = hard relay cut (hung/offline). */
+  mode: "graceful" | "forced";
+  cycle: { ok: boolean; cycling?: boolean; eta_s?: number };
+  error?: string;
+}
+
 export interface BatchPowerResult {
   success: boolean;
   results: {
@@ -413,6 +422,11 @@ export function shutdownSpark(id: string): Promise<PowerResult> {
 /** Send a Wake-on-LAN magic packet to a single Spark. */
 export function wakeSpark(id: string): Promise<PowerResult> {
   return apiFetch(`/api/sparks/${id}/wake`, { method: "POST" });
+}
+
+/** Graceful-first power cycle via the Spark's smart plug (POWER_METER_URL). */
+export function powerCycleSpark(id: string): Promise<PowerCycleResult> {
+  return apiFetch(`/api/sparks/${id}/powercycle`, { method: "POST" });
 }
 
 /** Shut down Sparks that are currently online. */

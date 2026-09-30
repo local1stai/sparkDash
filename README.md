@@ -414,6 +414,7 @@ Copy `.env.example` to `.env` if needed:
 | `POLL_INTERVAL_FAN` | `5000` | Fleet fan daemon status poll (ms) |
 | `POWER_METER_URL` | _(empty)_ | Optional fleet power meter base URL (one smart plug per Spark). Adds the fleet power pane, per-Spark wall watts + `GET /api/power` when set |
 | `POLL_INTERVAL_POWER` | `5000` | Fleet power meter poll (ms) |
+| `POWERCYCLE_GRACE_MS` | `60000` | How long a power cycle waits for the graceful shutdown before hard-cutting the relay |
 | `POLL_INTERVAL_GPU` | `2000` | GPU poll (ms) |
 | `POLL_INTERVAL_COMFY` | `2000` | ComfyUI probe poll (ms) |
 | `POLL_INTERVAL_CPU` | `2000` | CPU / RAM poll (ms) |
