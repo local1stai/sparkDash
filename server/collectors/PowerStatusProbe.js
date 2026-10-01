@@ -73,6 +73,7 @@ export function normalizePowerStatus(raw) {
       kwhMonth: month,
       cycling: Boolean(entry.cycling),
       ok: entry.ok !== false,
+      error: typeof entry.error === "string" && entry.error ? entry.error : null,
     };
   }
   return {

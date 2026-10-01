@@ -55,6 +55,7 @@ export function FanStatusStrip({
   const plugIds = power ? Object.keys(power.plugs) : [];
   const plugsOn = plugIds.filter((id) => power?.plugs[id]?.relayOn === true).length;
   const anyCycling = plugIds.some((id) => power?.plugs[id]?.cycling === true);
+  const brokenPlugs = plugIds.filter((id) => power?.plugs[id]?.ok === false);
 
   // Per-cluster wall watts: each head plus its workers (workerHeadId), with
   // orphaned workers lumped into an "Ungrouped" bucket. Only rendered when
@@ -229,6 +230,13 @@ export function FanStatusStrip({
 
       {anyCycling && (
         <p className="mt-2 text-xs text-warning">A plug is power-cycling its Spark…</p>
+      )}
+      {power && brokenPlugs.length > 0 && (
+        <p className="mt-1 text-xs text-danger">
+          {brokenPlugs
+            .map((id) => `${id}: ${power.plugs[id]?.error ?? "unreachable"}`)
+            .join(" · ")}
+        </p>
       )}
       {power && !power.online && (
         <p className="mt-2 text-xs text-warning">

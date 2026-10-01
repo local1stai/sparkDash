@@ -73,8 +73,8 @@ describe("FanStatusStrip states", () => {
       kwhToday: 0.42,
       kwhMonth: null,
       plugs: {
-        "gx10-91": { watts: 60.7, relayOn: true, kwhToday: 0.03, kwhMonth: 0.03, cycling: false, ok: true },
-        "gx10-92": { watts: 42.1, relayOn: true, kwhToday: 0.02, kwhMonth: 0.02, cycling: false, ok: true },
+        "gx10-91": { watts: 60.7, relayOn: true, kwhToday: 0.03, kwhMonth: 0.03, cycling: false, ok: true, error: null },
+        "gx10-92": { watts: 42.1, relayOn: true, kwhToday: 0.02, kwhMonth: 0.02, cycling: false, ok: true, error: null },
       },
       fetchedAt: Date.now(),
       error: null,
@@ -84,6 +84,23 @@ describe("FanStatusStrip states", () => {
     expect(container.textContent).toContain("341 W");
     expect(container.textContent).toContain("0.42 kWh");
     expect(container.textContent).toContain("2/2");
+  });
+
+  it("lists broken plugs with their daemon error", () => {
+    const power = {
+      online: true,
+      totalWatts: 100,
+      kwhToday: 0.1,
+      kwhMonth: 0.1,
+      plugs: {
+        "gx10-91": { watts: 100, relayOn: true, kwhToday: 0.1, kwhMonth: 0.1, cycling: false, ok: true, error: null },
+        "gx10-92": { watts: null, relayOn: null, kwhToday: null, kwhMonth: null, cycling: false, ok: false, error: "backoff after 3 failures: 403" },
+      },
+      fetchedAt: Date.now(),
+      error: null,
+    };
+    const { container } = render(<FanStatusStrip fan={fan()} power={power} />);
+    expect(container.textContent).toContain("gx10-92: backoff after 3 failures: 403");
   });
 
   it("renders power-only when no fan daemon is configured", () => {
@@ -124,6 +141,7 @@ describe("FanStatusStrip states", () => {
       kwhMonth: kwhToday * 2,
       cycling: false,
       ok: true,
+      error: null,
     });
     const power = {
       online: true,
