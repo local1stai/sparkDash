@@ -7,6 +7,7 @@ import { MetricBar } from "../ui/MetricBar";
 import { FleetEnergyCard } from "./FleetEnergyCard";
 import { FleetAlertStrip } from "./FleetAlertStrip";
 import { FanStatusStrip } from "./FanStatusStrip";
+import { EnergyCard } from "./EnergyCard";
 import { ActivityIcon, PowerOffIcon, PowerOnIcon, RotateIcon } from "../ui/icons";
 
 interface OverviewPageProps {
@@ -21,6 +22,8 @@ interface OverviewPageProps {
   fan?: FleetFanStatus | null;
   /** Fleet power meter status (POWER_METER_URL); null when unconfigured. */
   power?: FleetPowerStatus | null;
+  /** Settings gate for the metered-energy card (default on). */
+  showEnergyCard?: boolean;
   onSelectSpark?: (id: string) => void;
 }
 
@@ -416,6 +419,7 @@ export function OverviewPage({
   temperatureUnit = "celsius",
   fan = null,
   power = null,
+  showEnergyCard = true,
   onSelectSpark,
 }: OverviewPageProps) {
   const [query, setQuery] = useState("");
@@ -586,6 +590,7 @@ export function OverviewPage({
       {showFleetEnergy ? <FleetEnergyCard nodeCount={sparks.length} /> : null}
       {showFleetExceptions ? <FleetAlertStrip sparks={sparks} fan={fan} onSelect={onSelectSpark} /> : null}
       {fan || power ? <FanStatusStrip fan={fan} power={power} sparks={sparks} /> : null}
+      {showEnergyCard && power ? <EnergyCard /> : null}
       <div className="flex flex-wrap items-end justify-between gap-6">
         <h1
           className="font-normal leading-tight tracking-tight text-text-strong"

@@ -279,6 +279,34 @@ export function SettingsDialog({ open, onClose, onSaved }: SettingsDialogProps) 
               </label>
             </div>
 
+            {/* Metered energy card */}
+            <div>
+              <label className="flex items-start gap-3 text-xs text-muted">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={settings.showEnergyCard !== false}
+                  onClick={() => update({ showEnergyCard: settings.showEnergyCard === false })}
+                  className={`toggle-track relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                    settings.showEnergyCard !== false ? "is-on" : ""
+                  }`}
+                >
+                  <span
+                    className={`toggle-dot inline-block h-4 w-4 transform rounded-full shadow transition-transform ${
+                      settings.showEnergyCard !== false ? "translate-x-4" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+                <span>
+                  <span className="block text-text">Show metered energy</span>
+                  <span className="mt-0.5 block text-[10px] leading-snug text-muted">
+                    Overview card with wall-metered energy per head and fleet by day / week /
+                    month / all time (needs POWER_METER_URL). On by default.
+                  </span>
+                </span>
+              </label>
+            </div>
+
             {/* Fleet exceptions */}
             <div>
               <label className="flex items-start gap-3 text-xs text-muted">

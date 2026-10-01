@@ -1,4 +1,5 @@
 import type {
+  PowerEnergyResponse,
   DecodeBenchJob,
   DecodeBenchListResponse,
   FleetEnergy,
@@ -427,6 +428,11 @@ export function wakeSpark(id: string): Promise<PowerResult> {
 /** Graceful-first power cycle via the Spark's smart plug (POWER_METER_URL). */
 export function powerCycleSpark(id: string): Promise<PowerCycleResult> {
   return apiFetch(`/api/sparks/${id}/powercycle`, { method: "POST" });
+}
+
+/** Metered wall-energy windows per head/cluster + fleet (Wh). */
+export function fetchPowerEnergy(): Promise<PowerEnergyResponse> {
+  return apiFetch("/api/power/energy");
 }
 
 /** Shut down Sparks that are currently online. */

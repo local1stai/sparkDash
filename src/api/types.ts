@@ -597,6 +597,29 @@ export interface FleetPowerStatus {
   error: string | null;
 }
 
+// ─── Metered energy rollups ───────────────────────────────
+/** Per-head/cluster + fleet metered wall-energy totals (Wh) per window. */
+export interface EnergyWindows {
+  today: number;
+  week: number;
+  month: number;
+  all: number;
+}
+
+/** GET /api/power/energy — metered wall-energy windows (EnergyRollup, Wh). */
+export interface PowerEnergyResponse {
+  unit: "Wh";
+  fleet: EnergyWindows;
+  heads: (EnergyWindows & {
+    id: string;
+    name: string | null;
+    daily: { day: string; wh: number }[];
+    hourly: { hour: string; wh: number }[];
+  })[];
+  daily: { day: string; wh: number }[];
+  hourly: { hour: string; wh: number }[];
+}
+
 // ─── API responses ────────────────────────────────────────
 export interface Settings {
   pollIntervalMs: number;
@@ -615,6 +638,8 @@ export interface Settings {
   showFleetExceptions: boolean;
   /** Overview search field + status filter. Off by default. */
   showOverviewSearch: boolean;
+  /** Overview metered-energy card (wall-metered). On by default. */
+  showEnergyCard: boolean;
   /** Benchmark dialogs offer "Copy image" — a PNG share card of the results. */
   benchShareImage: boolean;
 }

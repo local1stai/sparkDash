@@ -359,6 +359,7 @@ function DashboardApp() {
               temperatureUnit={settings?.temperatureUnit ?? "celsius"}
               fan={fan}
               power={power}
+              showEnergyCard={settings?.showEnergyCard !== false}
               onSelectSpark={navigate}
             />
           ) : displayActive ? (
