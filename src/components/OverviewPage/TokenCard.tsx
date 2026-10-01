@@ -97,8 +97,11 @@ export function TokenCard() {
       <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2">
         <button
           type="button"
-          onClick={() => setFocus(null)}
-          title="Fleet-wide — click a head to chart it alone"
+          onClick={() => {
+            setFocus(null);
+            setByHead(false);
+          }}
+          title="Fleet combined — click a head to compare heads, again to chart it alone"
           className="text-left"
         >
           <div className="text-[10px] text-muted">Fleet</div>
@@ -110,8 +113,16 @@ export function TokenCard() {
             <button
               key={h.id}
               type="button"
-              onClick={() => setFocus(focused ? null : h.id)}
-              title={`${h.name ?? h.id} — day ${fmt(h.today)} · week ${fmt(h.week)} · month ${fmt(h.month)} · all ${fmt(h.all)}\nClick to chart this head alone`}
+              onClick={() => {
+                // Ladder: combined -> by-head (first press), by-head -> this
+                // head alone, solo -> back to by-head.
+                if (!byHead && focus === null) {
+                  setByHead(true);
+                  return;
+                }
+                setFocus(focused ? null : h.id);
+              }}
+              title={`${h.name ?? h.id} — day ${fmt(h.today)} · week ${fmt(h.week)} · month ${fmt(h.month)} · all ${fmt(h.all)}\nClick once for all heads, again to chart this head alone`}
               className={`rounded border px-2 py-0.5 text-[10px] transition-colors ${
                 focused
                   ? "border-accent/60 bg-accent/15 text-text"

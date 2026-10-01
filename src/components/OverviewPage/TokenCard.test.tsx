@@ -97,43 +97,55 @@ describe("TokenCard", () => {
     expect(last.title).toContain("GX10 95: 500.0k");
   });
 
-  it("clicking a head chip focuses that head's chart", async () => {
+  it("head chips ladder: combined -> by-head -> solo -> fleet", async () => {
     fetchTok.mockResolvedValue(tokens());
     const { container } = render(<TokenCard />);
     await flush();
     const chip = [...container.querySelectorAll("button")].find((b) =>
       b.textContent?.includes("GX10 95")
     );
+    const lastTitle = () => {
+      const cols = [
+        ...container.querySelectorAll('[aria-label*="tokens generated per"] > span'),
+      ] as HTMLElement[];
+      return cols[cols.length - 1].title;
+    };
+
+    // 1st press from Combined: switches to stacked by-head (no solo focus).
     chip?.click();
     await flush();
-    const columns = [...container.querySelectorAll('[aria-label*="tokens generated per"] > span')];
-    expect(columns.length).toBe(24); // Day default, hourly
-    const last = columns[columns.length - 1] as HTMLElement;
-    expect(last.title).toContain("GX10 95 ·");
-    expect(last.title).toContain("500.0k tokens");
-    expect(last.title).not.toContain("GX10 91");
-    // Clicking the Fleet number clears the focus.
+    expect(lastTitle()).toContain("GX10 91:");
+    expect(lastTitle()).toContain("GX10 95:");
+
+    // 2nd press: solo focus on that head.
+    chip?.click();
+    await flush();
+    expect(lastTitle()).toContain("GX10 95 ·");
+    expect(lastTitle()).not.toContain("GX10 91");
+
+    // 3rd press: back to stacked.
+    chip?.click();
+    await flush();
+    expect(lastTitle()).toContain("GX10 91:");
+
+    // Fleet returns to combined.
     const fleetBtn = [...container.querySelectorAll("button")].find((b) =>
       b.querySelector("div")?.textContent === "Fleet"
     );
     fleetBtn?.click();
     await flush();
-    const cleared = [
-      ...container.querySelectorAll('[aria-label*="tokens generated per"] > span'),
-    ] as HTMLElement[];
-    expect(cleared[cleared.length - 1].title).not.toContain("GX10 95 ·");
+    expect(lastTitle()).not.toContain("GX10 91:");
+    expect(lastTitle()).not.toContain("GX10 95 ·");
 
-    // The Combined/By-head toggle also takes over from a focused head.
+    // The Combined/By-head toggle still takes over from a focused head.
     chip?.click();
     await flush();
-    const toggle = [...container.querySelectorAll("button")].find((b) => b.textContent === "Combined");
+    chip?.click(); // -> solo
+    await flush();
+    const toggle = [...container.querySelectorAll("button")].find((b) => b.textContent === "By head");
     toggle?.click();
     await flush();
-    const afterToggle = [
-      ...container.querySelectorAll('[aria-label*="tokens generated per"] > span'),
-    ] as HTMLElement[];
-    expect(afterToggle[afterToggle.length - 1].title).toContain("GX10 91:"); // stacked breakdown, not focused
-    expect(afterToggle[afterToggle.length - 1].title).not.toContain("GX10 95 ·");
+    expect(lastTitle()).not.toContain("GX10 95 ·"); // mode toggle wins, back to combined
   });
 
   it("hides itself while no data has loaded", async () => {
