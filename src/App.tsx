@@ -362,6 +362,7 @@ function DashboardApp() {
               power={power}
               showFleetCard={settings?.showFleetCard !== false}
               showTokenCard={settings?.showTokenCard !== false}
+              showEnergyCard={settings?.showEnergyCard !== false}
               onSelectSpark={navigate}
             />
           ) : displayActive ? (

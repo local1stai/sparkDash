@@ -24,6 +24,9 @@ const TOKENS_JSON_PATH =
 /** Rolling fleet energy estimates (gitignored; written atomically at mode 0600). */
 const FLEET_ENERGY_JSON_PATH =
   process.env.FLEET_ENERGY_JSON_PATH || path.join(ROOT, "config", "fleet-energy.json");
+/** Wall-energy rollups from the power meter (gitignored). */
+const POWER_ROLLUP_JSON_PATH =
+  process.env.POWER_ROLLUP_JSON_PATH || path.join(ROOT, "config", "power-rollup.json");
 
 // ─── Fleet fan daemon (optional) ─────────────────────────
 /** Optional fleet fan daemon status URL (shared rack fan). Empty = feature hidden. */
@@ -126,6 +129,7 @@ export {
   LLM_DAILY_JSON_PATH,
   TOKENS_JSON_PATH,
   FLEET_ENERGY_JSON_PATH,
+  POWER_ROLLUP_JSON_PATH,
   FAN_STATUS_URL,
   POWER_METER_URL,
   LLM_PROBE_TIMEOUT_MS,

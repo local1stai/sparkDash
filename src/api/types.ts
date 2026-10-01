@@ -597,6 +597,15 @@ export interface FleetPowerStatus {
   error: string | null;
 }
 
+// ─── Metered energy rollups ───────────────────────────────
+/** Per-head/cluster + fleet metered wall-energy totals (Wh) per window. */
+export interface EnergyWindows {
+  today: number;
+  week: number;
+  month: number;
+  all: number;
+}
+
 // ─── Token rollups ────────────────────────────────────────
 /** Per-head + fleet generated-token totals for each window. */
 export interface TokenWindows {
@@ -622,6 +631,20 @@ export interface TokensResponse {
   hourly: { hour: string; tokens: number }[];
 }
 
+/** GET /api/power/energy — metered wall-energy windows (EnergyRollup, Wh). */
+export interface PowerEnergyResponse {
+  unit: "Wh";
+  fleet: EnergyWindows;
+  heads: (EnergyWindows & {
+    id: string;
+    name: string | null;
+    daily: { day: string; wh: number }[];
+    hourly: { hour: string; wh: number }[];
+  })[];
+  daily: { day: string; wh: number }[];
+  hourly: { hour: string; wh: number }[];
+}
+
 // ─── API responses ────────────────────────────────────────
 export interface Settings {
   pollIntervalMs: number;
@@ -644,6 +667,8 @@ export interface Settings {
   showFleetCard: boolean;
   /** Overview grid card columns on large screens (1–6; 3 = legacy layout). */
   overviewColumns: number;
+  /** Overview metered-energy card (wall-metered). On by default. */
+  showEnergyCard: boolean;
   /** Benchmark dialogs offer "Copy image" — a PNG share card of the results. */
   benchShareImage: boolean;
   /** Overview tokens-generated card (per head + fleet). On by default. */

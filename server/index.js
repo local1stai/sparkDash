@@ -44,11 +44,13 @@ import {
   POLL_INTERVAL_FAN,
   POLL_INTERVAL_POWER,
   POWER_METER_URL,
+  POWER_ROLLUP_JSON_PATH,
   TOKENS_JSON_PATH,
 } from "./config.js";
 import { FanStatusProbe } from "./collectors/FanStatusProbe.js";
 import { PowerStatusProbe } from "./collectors/PowerStatusProbe.js";
 import { TokenRollup } from "./collectors/TokenRollup.js";
+import { EnergyRollup } from "./collectors/EnergyRollup.js";
 import { FleetEnergyTracker } from "./energy/FleetEnergyTracker.js";
 import {
   createFleetEnergyRuntime,
@@ -333,6 +335,9 @@ const powerStatusProbe = POWER_METER_URL
 // Exact generated-token rollups per head (cumulative counter deltas).
 const tokenRollup = new TokenRollup({ filePath: TOKENS_JSON_PATH });
 
+// Wall-energy rollup from the meter's live watts (POWER_METER_URL fleets).
+const energyRollup = powerStatusProbe ? new EnergyRollup({ filePath: POWER_ROLLUP_JSON_PATH }) : null;
+
 // ─── Express app ─────────────────────────────────────────
 const app = express();
 const server = createServer(app);
@@ -390,6 +395,57 @@ app.get("/api/tokens", (_req, res) => {
     })),
     daily: tokenRollup.dailySeries(30),
     hourly: tokenRollup.hourlySeries(24),
+  });
+});
+
+// Metered wall-energy windows per head/cluster + fleet, in Wh. Heads sum
+// their workers (every machine burns watts, unlike tokens which are head-only).
+app.get("/api/power/energy", (_req, res) => {
+  if (!energyRollup) {
+    return res.status(404).json({ error: "Power meter not configured (POWER_METER_URL is unset)" });
+  }
+  const sparks = registry.sparks;
+  const known = new Set(sparks.map((s) => s.id));
+  const roleOf = (s) =>
+    s.role === "head" || s.role === "worker" || s.role === "standalone"
+      ? s.role
+      : s.workerNode
+        ? "worker"
+        : "standalone";
+  const orphanWorkers = sparks.filter(
+    (s) => roleOf(s) === "worker" && (!s.workerHeadId || !known.has(s.workerHeadId))
+  );
+  const groups = sparks
+    .filter((s) => roleOf(s) !== "worker")
+    .map((head) => ({
+      id: head.id,
+      name: head.name ?? head.id,
+      ids: [
+        head.id,
+        ...sparks
+          .filter((s) => s.workerHeadId === head.id && roleOf(s) === "worker")
+          .map((s) => s.id),
+      ],
+    }));
+  if (orphanWorkers.length > 0) {
+    groups.push({
+      id: "__ungrouped__",
+      name: "Ungrouped",
+      ids: orphanWorkers.map((s) => s.id),
+    });
+  }
+  res.json({
+    unit: "Wh",
+    fleet: energyRollup.totals(),
+    heads: groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      ...energyRollup.totals(g.ids),
+      daily: energyRollup.dailySeries(30, undefined, g.ids),
+      hourly: energyRollup.hourlySeries(24, undefined, g.ids),
+    })),
+    daily: energyRollup.dailySeries(30),
+    hourly: energyRollup.hourlySeries(24),
   });
 });
 
@@ -1871,6 +1927,7 @@ if (!startupPreflight.fatal) {
     fanStatusProbe?.start();
     powerStatusProbe?.start();
     tokenRollup.start(orderedSnapshots);
+    energyRollup?.start(() => powerStatusProbe?.snapshot()?.plugs ?? null);
   });
 } else {
   process.exitCode = 1;
@@ -1907,6 +1964,11 @@ async function shutdown(signal) {
   const energyPersistenceSucceeded = fleetEnergyRuntime.stop();
   fanStatusProbe?.stop();
   powerStatusProbe?.stop();
+  try {
+    energyRollup?.stop();
+  } catch (err) {
+    console.error("[sparkDash] failed to flush energy rollup:", err.message);
+  }
   const streamAgentClosedGracefully = await closeLlmStreamAgent();
   if (!streamAgentClosedGracefully) {
     console.warn("[sparkDash] LLM dispatcher close timed out; destroyed open sockets");

@@ -11,6 +11,7 @@ config/prefill-bench-active.json
 config/showcase-history.json
 config/llm-daily.json
 config/token-rollup.json
+config/power-rollup.json
 config/fleet-energy.json
 config/.fleet-energy.json.*.tmp
 config/gpu-memory.json
