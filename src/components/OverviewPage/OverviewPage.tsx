@@ -603,10 +603,8 @@ export function OverviewPage({
       {showFleetCard && (fan || power) ? (
         <FanStatusStrip fan={fan} power={power} sparks={sparks} />
       ) : null}
-      {showFleetExceptions ? <FleetAlertStrip sparks={sparks} onSelect={onSelectSpark} /> : null}
-      {showTokenCard ? <TokenCard /> : null}
-      {fan || power ? <FanStatusStrip fan={fan} power={power} sparks={sparks} /> : null}
       {showEnergyCard && power ? <EnergyCard /> : null}
+      {showTokenCard ? <TokenCard /> : null}
       <div className="flex flex-wrap items-end justify-between gap-6">
         <h1
           className="font-normal leading-tight tracking-tight text-text-strong"
