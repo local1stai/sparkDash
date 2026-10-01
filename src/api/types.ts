@@ -578,6 +578,8 @@ export interface FleetPlugStatus {
   kwhMonth: number | null;
   cycling: boolean;
   ok: boolean;
+  /** Daemon-side error for this plug (backoff, unreachable, …). */
+  error: string | null;
 }
 
 /**
