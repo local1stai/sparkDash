@@ -533,13 +533,14 @@ export function OverviewPage({
     setBatchMsg(null);
     try {
       const res = await powerOnAllSparks();
-      const ok = res.results.filter((r) => r.ok).length;
+      const cycled = res.results.filter((r) => r.ok && r.action === "cycle").length;
+      const switched = res.results.filter((r) => r.ok && r.action === "on").length;
       const fail = res.results.filter((r) => !r.ok && !r.skipped).length;
       setBatchMsg({
         text:
           fail === 0
-            ? `Power on sent to ${ok} plug(s) — nodes boot automatically`
-            : `${ok} on, ${fail} failed`,
+            ? `Wake sent — ${cycled} AC-cycled, ${switched} switched on — nodes boot automatically`
+            : `${cycled + switched} woken, ${fail} failed`,
         tone: fail === 0 ? "ok" : "err",
       });
     } catch (err: unknown) {

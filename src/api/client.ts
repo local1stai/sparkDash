@@ -418,6 +418,8 @@ export interface BatchPowerResult {
     skipped?: boolean;
     mac?: string;
     broadcast?: string;
+    /** What the fleet wake did: none (already online) | on | cycle. */
+    action?: "none" | "on" | "cycle";
   }[];
 }
 

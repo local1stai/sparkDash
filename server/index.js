@@ -1742,16 +1742,29 @@ function meteredSparks() {
 }
 
 // Fleet wake for plug-metered fleets (WoL does not work on this hardware).
-// Idempotent: relays already on are simply re-asserted.
+// A gracefully shut-down node sits soft-off with its relay STILL ON —
+// re-asserting "on" does nothing. The wake therefore does what the node
+// actually needs: relay off -> switch on; relay on + node offline -> brief
+// AC cycle (auto-boots); node online -> skip. Idempotent per state.
 app.post("/api/sparks/power-all-on", async (_req, res) => {
   if (!POWER_METER_URL) {
     return res.status(503).json({ error: "Power daemon not configured (POWER_METER_URL is unset)" });
   }
+  const plugs = powerStatusProbe?.snapshot()?.plugs ?? {};
   const results = [];
   for (const spark of meteredSparks()) {
+    const plug = plugs[spark.id] ?? {};
     try {
-      await triggerPlugOn(spark.id);
-      results.push({ id: spark.id, ok: true });
+      if (sparkIsOnline(spark.id)) {
+        results.push({ id: spark.id, ok: true, action: "none" });
+      } else if (plug.relayOn === false) {
+        await triggerPlugOn(spark.id);
+        results.push({ id: spark.id, ok: true, action: "on" });
+      } else {
+        // Soft-off with power applied: only an AC kick cold-boots it.
+        await triggerPlugCycle(spark.id);
+        results.push({ id: spark.id, ok: true, action: "cycle" });
+      }
     } catch (err) {
       results.push({ id: spark.id, ok: false, error: err.message || String(err) });
     }
