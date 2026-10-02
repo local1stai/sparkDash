@@ -1723,6 +1723,78 @@ async function triggerPlugCycle(sparkId) {
   return body;
 }
 
+async function triggerPlugOn(sparkId) {
+  const res = await fetch(
+    `${POWER_METER_URL.replace(/\/+$/, "")}/plug/${encodeURIComponent(sparkId)}/on`,
+    { method: "POST", signal: AbortSignal.timeout(10_000) }
+  );
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body?.ok) {
+    throw new Error(body?.error || `power daemon replied HTTP ${res.status}`);
+  }
+  return body;
+}
+
+/** Sparks with a metered plug (per the live power snapshot). */
+function meteredSparks() {
+  const plugs = powerStatusProbe?.snapshot()?.plugs ?? {};
+  return registry.sparks.filter((s) => !s.isLocal && plugs[s.id]);
+}
+
+// Fleet wake for plug-metered fleets (WoL does not work on this hardware).
+// Idempotent: relays already on are simply re-asserted.
+app.post("/api/sparks/power-all-on", async (_req, res) => {
+  if (!POWER_METER_URL) {
+    return res.status(503).json({ error: "Power daemon not configured (POWER_METER_URL is unset)" });
+  }
+  const results = [];
+  for (const spark of meteredSparks()) {
+    try {
+      await triggerPlugOn(spark.id);
+      results.push({ id: spark.id, ok: true });
+    } catch (err) {
+      results.push({ id: spark.id, ok: false, error: err.message || String(err) });
+    }
+  }
+  const skipped = registry.sparks.filter((s) => !results.some((r) => r.id === s.id));
+  for (const s of skipped) results.push({ id: s.id, ok: false, skipped: true, error: "No smart plug" });
+  res.json({ success: results.every((r) => r.ok || r.skipped), results });
+});
+
+// Fleet reboot, graceful-first: shut down everyone that is online (parallel),
+// wait once (bounded) for the fleet to settle, then relay-cycle every plug.
+app.post("/api/sparks/power-cycle-all", async (_req, res) => {
+  if (!POWER_METER_URL) {
+    return res.status(503).json({ error: "Power daemon not configured (POWER_METER_URL is unset)" });
+  }
+  const metered = meteredSparks();
+  await Promise.all(
+    metered
+      .filter((s) => sparkIsOnline(s.id))
+      .map((s) =>
+        initiateSparkShutdown(s).catch((err) => {
+          console.warn(`[power-cycle-all] ${s.id}: graceful shutdown failed (${err.message})`);
+        })
+      )
+  );
+  const deadline = Date.now() + POWERCYCLE_GRACE_MS;
+  while (Date.now() < deadline && metered.some((s) => sparkIsOnline(s.id))) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  const results = await Promise.all(
+    metered.map(async (s) => {
+      const mode = sparkIsOnline(s.id) ? "forced" : "graceful";
+      try {
+        await triggerPlugCycle(s.id);
+        return { id: s.id, ok: true, mode };
+      } catch (err) {
+        return { id: s.id, ok: false, mode, error: err.message || String(err) };
+      }
+    })
+  );
+  res.json({ success: results.every((r) => r.ok), results });
+});
+
 app.post("/api/sparks/:id/powercycle", async (req, res) => {
   try {
     const spark = registry.getSpark(req.params.id);

@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import type { FleetFanStatus, FleetPowerStatus, SparkSnapshot } from "../../api/types";
 import { isWorkerSpark, resolveSparkRole } from "../../api/sparkRole";
-import { shutdownAllSparks, updateAllHermes, wakeAllSparks } from "../../api/client";
+import {
+  powerCycleAllSparks,
+  powerOnAllSparks,
+  shutdownAllSparks,
+  updateAllHermes,
+  wakeAllSparks,
+} from "../../api/client";
 import { ConfirmShutdownDialog } from "../ConfirmShutdownDialog";
 import { MetricBar } from "../ui/MetricBar";
 import { FleetEnergyCard } from "./FleetEnergyCard";
@@ -448,6 +454,7 @@ export function OverviewPage({
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchMsg, setBatchMsg] = useState<{ text: string; tone: "ok" | "err" } | null>(null);
   const [shutdownOpen, setShutdownOpen] = useState(false);
+  const [cycleAllOpen, setCycleAllOpen] = useState(false);
   /** Spark ids we started a batch Hermes update on; drives the live progress bar. */
   const [batchRun, setBatchRun] = useState<string[] | null>(null);
 
@@ -518,6 +525,56 @@ export function OverviewPage({
     } finally {
       setBatchLoading(false);
       setTimeout(() => setBatchMsg(null), 6000);
+    }
+  }
+
+  async function handlePowerOnAll() {
+    setBatchLoading(true);
+    setBatchMsg(null);
+    try {
+      const res = await powerOnAllSparks();
+      const ok = res.results.filter((r) => r.ok).length;
+      const fail = res.results.filter((r) => !r.ok && !r.skipped).length;
+      setBatchMsg({
+        text:
+          fail === 0
+            ? `Power on sent to ${ok} plug(s) — nodes boot automatically`
+            : `${ok} on, ${fail} failed`,
+        tone: fail === 0 ? "ok" : "err",
+      });
+    } catch (err: unknown) {
+      setBatchMsg({
+        text: err instanceof Error ? err.message : "Batch power-on failed",
+        tone: "err",
+      });
+    } finally {
+      setBatchLoading(false);
+      setTimeout(() => setBatchMsg(null), 6000);
+    }
+  }
+
+  async function handlePowerCycleAll() {
+    setBatchLoading(true);
+    setBatchMsg(null);
+    try {
+      const res = await powerCycleAllSparks();
+      const ok = res.results.filter((r) => r.ok).length;
+      const fail = res.results.filter((r) => !r.ok).length;
+      setBatchMsg({
+        text:
+          fail === 0
+            ? `Power cycling ${ok} Spark(s) — back in a few minutes`
+            : `${ok} cycling, ${fail} failed`,
+        tone: fail === 0 ? "ok" : "err",
+      });
+    } catch (err: unknown) {
+      setBatchMsg({
+        text: err instanceof Error ? err.message : "Fleet power cycle failed",
+        tone: "err",
+      });
+    } finally {
+      setBatchLoading(false);
+      setTimeout(() => setBatchMsg(null), 8000);
     }
   }
 
@@ -684,6 +741,30 @@ export function OverviewPage({
                 <PowerOnIcon className="h-3 w-3" />
                 Wake All
               </button>
+              {power && visibleSparks.some((s) => !s.online) && (
+                <button
+                  type="button"
+                  onClick={() => void handlePowerOnAll()}
+                  disabled={batchLoading}
+                  title="Switch every metered Spark's smart plug on — nodes boot automatically (WoL-free fleet wake)"
+                  className="flex items-center gap-1 rounded-md border border-border bg-surface-elevated px-2.5 py-1.5 text-[11px] text-muted hover:bg-success/20 hover:text-success transition-colors disabled:opacity-50"
+                >
+                  <PowerOnIcon className="h-3 w-3" />
+                  Power on all
+                </button>
+              )}
+              {power && (
+                <button
+                  type="button"
+                  onClick={() => setCycleAllOpen(true)}
+                  disabled={batchLoading}
+                  title="Gracefully shut down every metered Spark, then relay-cycle all plugs (fleet reboot)"
+                  className="flex items-center gap-1 rounded-md border border-border bg-surface-elevated px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:bg-warning/20 hover:text-warning disabled:opacity-50"
+                >
+                  <RotateIcon className="h-3 w-3" />
+                  Power cycle all
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setShutdownOpen(true)}
@@ -736,6 +817,16 @@ export function OverviewPage({
         title="Shutdown All"
         description={`Gracefully shut down all ${onlineShutdownCount} online Spark${onlineShutdownCount === 1 ? "" : "s"}? Offline nodes will be skipped.`}
         confirmLabel="Shut down all"
+      />
+
+      <ConfirmShutdownDialog
+        open={cycleAllOpen}
+        onClose={() => setCycleAllOpen(false)}
+        onConfirm={handlePowerCycleAll}
+        requirePhrase={null}
+        title="Power cycle all Sparks"
+        description="Fleet reboot through the smart plugs: every Spark shuts down gracefully first (hard cut for any that hang), then all plugs cycle and the nodes boot again. The whole rack reboots."
+        confirmLabel="Power cycle all"
       />
       <div
         className="overview-page"

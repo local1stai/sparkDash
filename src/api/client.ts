@@ -441,6 +441,16 @@ export function fetchPowerEnergy(): Promise<PowerEnergyResponse> {
   return apiFetch("/api/power/energy");
 }
 
+/** Switch every metered Spark's plug on (fleet wake; idempotent). */
+export function powerOnAllSparks(): Promise<BatchPowerResult> {
+  return apiFetch("/api/sparks/power-all-on", { method: "POST" });
+}
+
+/** Fleet reboot via plugs: graceful shutdowns, then relay-cycle everyone. */
+export function powerCycleAllSparks(): Promise<BatchPowerResult> {
+  return apiFetch("/api/sparks/power-cycle-all", { method: "POST" });
+}
+
 /** Shut down Sparks that are currently online. */
 export function shutdownAllSparks(): Promise<BatchPowerResult> {
   return apiFetch("/api/sparks/shutdown-all", { method: "POST" });
