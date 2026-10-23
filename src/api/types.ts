@@ -5,13 +5,13 @@ export interface SparkConfig {
   /**
    * Unit type:
    * - spark: NVIDIA DGX Spark (default) — DGX Spark specs shown in the header.
-   * - host: any Linux box with an NVIDIA GPU (still monitored via nvidia-smi,
-   *   just not a Spark). Real hardware is auto-detected once online.
+   * - host: any Linux box with supported NVIDIA or AMD GPUs, just not a Spark.
+   *   Real hardware is auto-detected once online.
    */
   kind?: "spark" | "host";
   /**
    * Optional OS platform override for SSH-collected units. "linux" (default)
-   * uses /proc + nvidia-smi, "darwin" macOS hosts, "windows" Windows hosts
+   * uses /proc + vendor GPU tooling, "darwin" macOS hosts, "windows" Windows hosts
    * (PowerShell collectors; NVIDIA via nvidia-smi, AMD iGPUs via GPU
    * performance counters).
    */
@@ -198,9 +198,34 @@ export interface GpuThrottle {
   smClockMaxMHz: number | null;
   /** Current SM clock as % of max (0–100). null when clocks unavailable. */
   smClockPct: number | null;
+  /** Max graphics clock locked with `nvidia-smi -lgc` (MHz), from the sparkdash
+   *  gpu-clock-cap marker on the host. null/absent when no lock is recorded. */
+  clockCapMHz?: number | null;
   /** Human-readable active reasons (tooltip). */
   detail: string;
 }
+
+/** GET /api/sparks/:id/gpu-clock: the GPU clock cap (`nvidia-smi -lgc`) and its boot service. */
+export type GpuClockStatus =
+  | { supported: false; reason?: string }
+  | {
+      supported: true;
+      /** GPU maximum graphics clock (MHz). */
+      hwMaxMHz: number | null;
+      /** Cap in effect right now (MHz), null when none is recorded. */
+      capMHz: number | null;
+      /** The server accepts a typed sudo password on this connection (https or the machine itself). */
+      passwordAllowed?: boolean;
+      /** "root" runs directly, "yes" = passwordless sudo works, "no" = it does not. */
+      sudo: "root" | "yes" | "no";
+      service: {
+        installed: boolean;
+        /** "min,max" the service applies at boot. */
+        clocks: string | null;
+        enabled: string | null;
+        active: string | null;
+      };
+    };
 
 /** One health finding for a Spark (server rules in server/health/HealthEvaluator.js). */
 export interface HealthFinding {
@@ -211,7 +236,18 @@ export interface HealthFinding {
   hint: string;
 }
 
+export interface GpuMetricAvailability {
+  temperature: boolean;
+  usage: boolean;
+  powerDraw: boolean;
+  powerLimit: boolean;
+  vramUsed: boolean;
+  vramTotal: boolean;
+}
+
 export interface GpuMetrics {
+  vendors?: Array<"amd" | "nvidia" | "intel">;
+  metricAvailability?: GpuMetricAvailability;
   temperature: number;
   usage: number;
   power: {
@@ -243,10 +279,17 @@ export interface GpuMetrics {
   gpus?: GpuDevice[];
 }
 
-/** One physical GPU as reported by nvidia-smi (`index,name,uuid`). */
+/** One physical GPU; `index` is a stable dashboard identity and `physicalIndex` is the vendor's index (nvidia-smi, amd-smi, or Intel sysfs). */
 export interface GpuDevice {
+  /** Stable dashboard identity; AMD indices use a separate internal range. */
   index: number;
+  /** Physical index reported by the vendor tool. */
+  physicalIndex?: number;
+  /** Absent on payloads from servers older than vendor tagging; treat as "nvidia". */
+  vendor?: "amd" | "nvidia" | "apple" | "intel";
+  metricAvailability?: GpuMetricAvailability;
   name: string | null;
+  /** NVIDIA GPU uuid; null for other vendors. */
   uuid: string | null;
   temperature: number;
   usage: number;
@@ -255,6 +298,10 @@ export interface GpuDevice {
   throttle?: GpuThrottle | null;
   /** Processes holding memory on this card only. */
   processes?: Array<{ pid: number; name: string; vramMB: number }>;
+  /** Intel only: fan speed in rpm, null when the card has no fan sensor. */
+  fanRpm?: number | null;
+  /** Intel only: "debugfs" = measured VRAM use; "pci-bar" = total only, used is unknown (shown as 0). */
+  vramSource?: "debugfs" | "pci-bar";
 }
 
 // ─── CPU metrics ─────────────────────────────────────────
@@ -380,7 +427,7 @@ export interface LlmMetrics {
   /** The LLM port this snapshot came from — lets the UI match panels to probes by port, not array position. */
   port?: number;
   available: boolean;
-  backend: "vllm" | "llama.cpp" | "sglang" | "lmstudio" | "ollama" | "ds4" | "exl3" | "q27" | "tensorfold" | "freetoken" | null;
+  backend: "vllm" | "llama.cpp" | "sglang" | "lmstudio" | "ollama" | "ds4" | "exl3" | "q27" | "tensorfold" | "freetoken" | "radiance" | "strata" | "flare" | null;
   /** How the monitor reaches the engine: its own address, or an SSH forward when only SSH gets there. */
   via?: "direct" | "ssh-tunnel";
   modelId: string | null;
@@ -390,12 +437,31 @@ export interface LlmMetrics {
   contextLength: number | null;
   /** GPU memory utilization for the LLM engine (0–1), e.g. 0.9. Only from vLLM internal info. */
   gpuMemoryUtilization: number | null;
-  slotsActive: number;
+  /** Occupied slots; null when the backend does not report occupancy. */
+  slotsActive: number | null;
   slotsTotal: number;
   generationTps: number;
+  /** How generationTps was measured when a backend exposes a fallback. */
+  generationTpsSource?: "window" | "slot-mean" | null;
+  /**
+   * Average decode tok/s of ONE stream (aggregate ÷ active streams when all
+   * decode in lockstep). Only engines publishing a per-token latency histogram
+   * report it; null otherwise.
+   */
+  perStreamTps?: number | null;
+  /**
+   * Effective prefill tok/s of ONE request (aggregate equals it on engines
+   * without a per-request split). Derived from prompt-token and prefill-second
+   * counters that advance when a request FINISHES, so it is held between
+   * completions. Prompt counters include prefix-cache hits — treat it as an
+   * effective rate, not raw GPU compute speed; null when unavailable.
+   */
+  perStreamPrefillTps?: number | null;
   prefillTps: number;
   /** A prompt is being processed right now. With no live rate available (TensorFold reports totals only for finished requests) the UI says "prefilling" instead of 0. */
   prefillActive?: boolean;
+  /** A request is generating right now, even when the backend has no live rate. */
+  decodeActive?: boolean;
   /** Live cached-prefill tok/s when the backend splits kinds (ds4, llama.cpp, sglang). */
   cachedPrefillTps?: number | null;
   /** Live uncached/computed prefill tok/s when split is available. */
@@ -588,6 +654,8 @@ export interface SparkMetrics {
   unifiedMemory: UnifiedMemoryMetrics | null;
   /** Array of LLM metrics, one per configured port. Empty array when no ports. */
   llm: LlmMetrics[];
+  /** Loaded models discovered in private vLLM containers over SSH; no throughput claim. */
+  residentModels?: Array<{ modelId: string; container: string }>;
   /** ComfyUI probe result when monitoring is enabled; null when off or not yet polled. */
   comfy?: ComfyMetrics | null;
   /** Tailnet probe result when monitoring is enabled; null when off or not yet polled. */
@@ -660,6 +728,107 @@ export interface WsSnapshot {
   fan?: FleetFanStatus | null;
   /** Fleet power meter status; absent when POWER_METER_URL is not configured. */
   power?: FleetPowerStatus | null;
+  /** Alert notifications' firing set — present only while `alertsEnabled` is on. */
+  alerts?: { active: AlertInstance[] };
+}
+
+// ─── Alert notifications (server/alerts) ──────────────────
+export type AlertSeverity = "warning" | "critical";
+
+/**
+ * One pending or firing alert (GET /api/alerts, WS `alerts.active`). The
+ * condition is a Health finding or an Overview strip exception; `ruleId` is the
+ * finding id (thermal, memory, …) or the strip's (offline, throttle, disk, llm, tailnet).
+ */
+export interface AlertInstance {
+  /** `${unitId}:${ruleId}` — the same key the Overview strip uses. */
+  key: string;
+  ruleId: string;
+  ruleName: string;
+  unitId: string;
+  unitName: string;
+  severity: AlertSeverity;
+  /** Highest severity reached while firing (a resolved alert is routed by it). */
+  peakSeverity?: AlertSeverity;
+  state: "pending" | "firing";
+  /** Short predicate after the unit name ("GPU is running hot"). */
+  label: string;
+  summary: string;
+  /** Epoch ms the condition first held — survives a server restart. */
+  startsAt: number;
+  firingAt: number | null;
+}
+
+/** One firing / resolved transition (newest first in `recent`). */
+export interface AlertEvent {
+  id: number;
+  at: number;
+  status: "firing" | "resolved";
+  key: string;
+  ruleId: string;
+  ruleName: string;
+  unitId: string;
+  unitName: string;
+  severity: AlertSeverity;
+  label: string;
+  summary: string;
+  startsAt: number;
+  endsAt: number | null;
+}
+
+export interface AlertsResponse {
+  enabled: boolean;
+  active: AlertInstance[];
+  pending: AlertInstance[];
+  recent: AlertEvent[];
+}
+
+/** A rule as GET /api/alerts/config describes it: where it comes from, on/off and `for`. */
+export interface AlertRule {
+  id: string;
+  name: string;
+  description: string;
+  source: "health" | "strip";
+  defaults: { enabled: boolean; forSec: number };
+  /** Only the values the user changed. */
+  overrides: { enabled?: boolean; forSec?: number };
+}
+
+export type AlertChannelType = "ntfy" | "discord" | "slack" | "webhook";
+
+export interface AlertChannel {
+  /** Absent on a channel added in the dialog and not yet saved. */
+  id?: string;
+  name: string;
+  type: AlertChannelType;
+  /** Masked by the server (`https://ntfy.sh…ab12`); send it back unchanged to keep it. */
+  url: string;
+  /** The server has a URL for this channel (in its encrypted secrets store). */
+  hasUrl?: boolean;
+  enabled: boolean;
+  minSeverity: AlertSeverity;
+  /** `lastError` is a status code or a fixed reason, never a server's answer. */
+  status?: { lastSentAt: number | null; lastError: string | null; lastErrorAt: number | null };
+}
+
+export interface AlertsConfig {
+  enabled: boolean;
+  /** 0 = no reminders while an alert keeps firing. */
+  repeatIntervalMin: number;
+  rules: AlertRule[];
+  channels: AlertChannel[];
+}
+
+export interface AlertsConfigUpdate {
+  repeatIntervalMin?: number;
+  rules?: Record<string, { enabled?: boolean; forSec?: number }>;
+  channels?: AlertChannel[];
+}
+
+export interface AlertTestResult {
+  ok: boolean;
+  status?: number;
+  error?: string;
 }
 
 export interface FleetEnergy {
@@ -753,7 +922,33 @@ export interface HealthResponse {
   warnings: string[];
 }
 
+export interface InferenceActivity {
+  enabled: boolean;
+  available: boolean;
+  /** Approved non-secret display labels, never API keys. */
+  labels: string[];
+  generatedAt: string | null;
+  error: string | null;
+  active: Array<{
+    principal: string;
+    model: string;
+    count: number;
+    oldestAgeMs: number;
+    newestAgeMs: number;
+  }>;
+  recent: Array<{
+    principal: string;
+    model: string;
+    durationMs: number;
+    status: number | null;
+    observedAt: string;
+  }>;
+  overflowed: boolean;
+}
+
 export interface Settings {
+  /** Read-only server capability; configured through environment variables. */
+  inferenceActivityEnabled?: boolean;
   pollIntervalMs: number;
   defaultLlmPort: number;
   autoHideOffline: boolean;
@@ -794,7 +989,60 @@ export interface Settings {
   showVramBreakdown: boolean;
   /** Serve GET /metrics in Prometheus text format. Off by default (404 when off). */
   prometheusExport: boolean;
+  /** Let the Intel (xe) probe read debugfs VRAM through sudo -n. Off by default. */
+  intelVramSudo: boolean;
+  /**
+   * Keep 48 h / 30 days of per-unit history on the server and chart it in a History
+   * panel on the unit page. Off by default.
+   */
+  metricsHistory?: boolean;
+  /** Alert notifications (Settings → Alerts). Off by default; while off nothing is evaluated or sent. */
+  alertsEnabled?: boolean;
 }
+
+// ─── Unit history (GET /api/sparks/:id/history) ──────────
+export type MetricsHistoryRange = "1h" | "6h" | "24h" | "7d" | "30d";
+
+/** One series in one bucket. `min` only on memFreeMB (headroom's low point). */
+export interface HistoryStat {
+  avg: number;
+  max: number;
+  min?: number;
+}
+
+/** Unit-level series: %, °C, W, MB, bytes/s. */
+export type HistoryUnitSeries =
+  | "gpuUtil"
+  | "gpuTemp"
+  | "gpuPower"
+  | "memUsedMB"
+  | "memFreeMB"
+  | "cpuUtil"
+  | "cpuTemp"
+  | "ramUsedMB"
+  | "netRx"
+  | "netTx";
+
+/** Per LLM endpoint: tok/s, and the KV pool fill as 0–1. */
+export type HistoryLlmSeries = "genTps" | "prefillTps" | "kvUsage";
+
+/** A bucket; a series the unit did not report in it is absent (a gap). */
+export type HistoryPoint = { t: number } & Partial<Record<HistoryUnitSeries, HistoryStat>>;
+export type HistoryLlmPoint = { t: number } & Partial<Record<HistoryLlmSeries, HistoryStat>>;
+
+export interface MetricsHistoryData {
+  enabled: true;
+  range: MetricsHistoryRange;
+  /** Bucket width of the points; a jump larger than this is a gap. */
+  stepMs: number;
+  /** Window the range covers (epoch ms); the x-axis spans exactly this. */
+  from: number;
+  to: number;
+  points: HistoryPoint[];
+  llm: Array<{ port: number; points: HistoryLlmPoint[] }>;
+}
+
+export type MetricsHistoryResponse = MetricsHistoryData | { enabled: false };
 
 export interface SparksListResponse {
   sparks: SparkConfig[];
@@ -838,6 +1086,10 @@ export interface DecodeBenchConfig {
   maxTokens: number;
   /** Output-shape label only — not guided decoding / JSON schema. */
   promptType?: DecodeBenchPromptType;
+  /** Sampling temperature (default 0.7). Older runs have none: they ran at 0. */
+  temperature?: number;
+  /** Thinking on (default). Older runs have none: they ran with it off. */
+  thinking?: boolean;
   /** On-demand remote host (Tailscale HTTPS, etc.). */
   host?: string;
   tls?: boolean;
@@ -957,6 +1209,8 @@ export interface DecodeBenchDefaults {
   maxMaxTokens: number;
   promptTypes: DecodeBenchPromptType[];
   defaultPromptType: DecodeBenchPromptType;
+  defaultTemperature?: number;
+  defaultThinking?: boolean;
 }
 
 export interface DecodeBenchListResponse {
@@ -974,6 +1228,10 @@ export interface StartDecodeBenchRequest {
   modelId?: string | null;
   /** Output type: structured (default), prose, code, json. Prompt only. */
   promptType?: DecodeBenchPromptType;
+  /** 0–2, default 0.7. */
+  temperature?: number;
+  /** Default true. */
+  thinking?: boolean;
   /** On-demand remote LLM host (hostname or URL). Skips this Spark's LAN/SSH path. */
   host?: string;
   tls?: boolean;
@@ -1352,6 +1610,12 @@ export interface TokenHistoryRow {
   completionTokens: number;
   /** Prompt tokens served from the prefix cache (always <= promptTokens). */
   cachedTokens: number;
+  /**
+   * Whether the backend measured the cache split for this bucket. `false` means the
+   * engine publishes no prefix-cache counter, so `cachedTokens` is not a miss count.
+   * Absent on data recorded before the flag existed (treated as reported).
+   */
+  cacheReported?: boolean;
 }
 
 export interface TokenHistory {

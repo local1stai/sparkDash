@@ -8,8 +8,12 @@
  * conventions people already have dashboards for: base units (bytes, seconds,
  * celsius, watts, 0–1 ratios), `_total` only on counters, one HELP and one
  * TYPE per family. Every series carries the unit's identity as labels
- * (`unit`, `unit_name`, `kind`, `role`); GPU series add `gpu` (the nvidia-smi
- * index) so multi-GPU hosts get one series per card.
+ * (`unit`, `unit_name`, `kind`, `role`); GPU series add `gpu` so multi-GPU
+ * hosts get one series per card. For an NVIDIA card `gpu` is the nvidia-smi
+ * index ("0", "1"); an AMD card is the amd-smi index plus 1000 ("1000" is the
+ * first AMD card), so the two vendors never share a label value. `name` and
+ * `uuid` on `sparkdash_gpu_info` identify the card; the 1000 offset is not a
+ * physical index.
  *
  * Unknown is not zero. The collectors return zero-filled defaults when a read
  * fails, so a sample is only written when its value was actually measured:
@@ -46,7 +50,7 @@ export const METRIC_FAMILIES = [
   {
     name: "sparkdash_gpu_utilization_ratio",
     type: "gauge",
-    help: "GPU utilization reported by nvidia-smi (0-1).",
+    help: "GPU utilization reported by vendor tooling (0-1).",
   },
   {
     name: "sparkdash_gpu_temperature_celsius",
@@ -117,6 +121,16 @@ export const METRIC_FAMILIES = [
     name: "sparkdash_llm_generation_tokens_per_second",
     type: "gauge",
     help: "Decode throughput over the last poll interval, from the engine's token counters.",
+  },
+  {
+    name: "sparkdash_llm_per_stream_tokens_per_second",
+    type: "gauge",
+    help: "Average decode throughput of one running stream (1 / mean seconds per output token). Only engines with a per-token histogram report it.",
+  },
+  {
+    name: "sparkdash_llm_per_stream_prefill_tokens_per_second",
+    type: "gauge",
+    help: "Effective prefill throughput of one request (prompt tokens incl. prefix-cache hits divided by prefill seconds, over finished requests). Held between completions; engines publish prefill time only when a request finishes.",
   },
   {
     name: "sparkdash_llm_prefill_tokens_per_second",
@@ -275,16 +289,24 @@ function addGpu(samples, base, gpu) {
         1
       );
     }
-    if (finite(device.usage)) samples.add("sparkdash_gpu_utilization_ratio", labels, ratio(device.usage));
-    samples.add("sparkdash_gpu_temperature_celsius", labels, device.temperature);
-    samples.add("sparkdash_gpu_power_watts", labels, device.power?.draw);
-    if (finite(device.power?.limit) && device.power.limit > 0) {
+    if (device.metricAvailability?.usage !== false && finite(device.usage)) samples.add("sparkdash_gpu_utilization_ratio", labels, ratio(device.usage));
+    if (device.metricAvailability?.temperature !== false && finite(device.temperature)) {
+      samples.add("sparkdash_gpu_temperature_celsius", labels, device.temperature);
+    }
+    if (device.metricAvailability?.powerDraw !== false && finite(device.power?.draw)) {
+      samples.add("sparkdash_gpu_power_watts", labels, device.power.draw);
+    }
+    if (device.metricAvailability?.powerLimit !== false && finite(device.power?.limit) && device.power.limit > 0) {
       samples.add("sparkdash_gpu_power_limit_watts", labels, device.power.limit);
     }
     const vram = device.vram;
     if (vram && finite(vram.total) && vram.total > 0) {
-      if (finite(vram.used)) samples.add("sparkdash_gpu_memory_used_bytes", labels, bytesFromMib(vram.used));
-      samples.add("sparkdash_gpu_memory_total_bytes", labels, bytesFromMib(vram.total));
+      if (device.metricAvailability?.vramUsed !== false && finite(vram.used)) {
+        samples.add("sparkdash_gpu_memory_used_bytes", labels, bytesFromMib(vram.used));
+      }
+      if (device.metricAvailability?.vramTotal !== false) {
+        samples.add("sparkdash_gpu_memory_total_bytes", labels, bytesFromMib(vram.total));
+      }
     }
     const throttle = device.throttle;
     if (throttle && typeof throttle === "object" && throttle.reason !== "unknown") {
@@ -312,6 +334,8 @@ function addLlm(samples, base, snapshot) {
     samples.add("sparkdash_llm_up", labels, entry.available === true ? 1 : 0);
     if (entry.available !== true) return;
     samples.add("sparkdash_llm_generation_tokens_per_second", labels, entry.generationTps);
+    samples.add("sparkdash_llm_per_stream_tokens_per_second", labels, entry.perStreamTps);
+    samples.add("sparkdash_llm_per_stream_prefill_tokens_per_second", labels, entry.perStreamPrefillTps);
     samples.add("sparkdash_llm_prefill_tokens_per_second", labels, entry.prefillTps);
     samples.add("sparkdash_llm_kv_cache_usage_ratio", labels, entry.kvCacheUsage);
     samples.add("sparkdash_llm_requests_running", labels, entry.requestsRunning);

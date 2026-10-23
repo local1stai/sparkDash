@@ -40,6 +40,22 @@ test("prometheusExport is opt-in and stored as a boolean", () => {
   assert.equal(updateSettings({ prometheusExport: 0 }).prometheusExport, false);
 });
 
+test("metricsHistory is opt-in and stored as a boolean", () => {
+  fs.writeFileSync(process.env.SETTINGS_JSON_PATH, JSON.stringify({ density: "compact" }));
+  assert.equal(loadSettings().metricsHistory, false);
+  assert.equal(updateSettings({ metricsHistory: 1 }).metricsHistory, true);
+  assert.equal(loadSettings().metricsHistory, true);
+  assert.equal(updateSettings({ metricsHistory: "" }).metricsHistory, false);
+});
+
+test("alertsEnabled is opt-in and stored as a boolean", () => {
+  fs.writeFileSync(process.env.SETTINGS_JSON_PATH, JSON.stringify({ density: "compact" }));
+  assert.equal(loadSettings().alertsEnabled, false);
+  assert.equal(updateSettings({ alertsEnabled: "yes" }).alertsEnabled, true);
+  assert.equal(loadSettings().alertsEnabled, true);
+  assert.equal(updateSettings({ alertsEnabled: 0 }).alertsEnabled, false);
+});
+
 test("timeZone follows the browser by default, accepts IANA names and drops anything else", () => {
   fs.writeFileSync(process.env.SETTINGS_JSON_PATH, JSON.stringify({ density: "compact" }));
   assert.equal(loadSettings().timeZone, "");
@@ -60,4 +76,11 @@ test("every Overview panel is shown by default (an older file gets that too) and
     assert.equal(updateSettings({ [k]: false })[k], false, k);
     assert.equal(updateSettings({ [k]: true })[k], true, k);
   }
+});
+
+test("intelVramSudo is opt-in and stored as a boolean", () => {
+  fs.writeFileSync(process.env.SETTINGS_JSON_PATH, JSON.stringify({ density: "compact" }));
+  assert.equal(loadSettings().intelVramSudo, false);
+  assert.equal(updateSettings({ intelVramSudo: "yes" }).intelVramSudo, true);
+  assert.equal(updateSettings({ intelVramSudo: 0 }).intelVramSudo, false);
 });

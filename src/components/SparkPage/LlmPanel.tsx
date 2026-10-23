@@ -424,12 +424,13 @@ export function LlmPanel({
 
   const generationTps = llm?.generationTps ?? 0;
   const prefillTps = llm?.prefillTps ?? 0;
+  const isStrata = llm?.backend === "strata";
   const showPrefillSplit = llm?.cachedPrefillTps != null || llm?.uncachedPrefillTps != null;
   const cachedPrefillTps = llm?.cachedPrefillTps ?? 0;
   const uncachedPrefillTps = llm?.uncachedPrefillTps ?? 0;
   const available = llm?.available ?? false;
   // While nothing is flowing, say when the endpoint last served.
-  const idleNote = available && isLlmIdle({ generationTps, prefillTps })
+  const idleNote = available && isLlmIdle({ generationTps, prefillTps, prefillActive: llm?.prefillActive, decodeActive: llm?.decodeActive })
     ? idleLabel(llm?.lastActiveAt)
     : null;
 
@@ -499,10 +500,10 @@ export function LlmPanel({
 
   const fmtTps = (n: number) => (n >= 1000 ? Math.round(n).toLocaleString() : n.toFixed(1));
   const fmtAvg = (n: number) => (n >= 100 ? n.toFixed(0) : n.toFixed(1));
-  const isVllm = llm != null && (llm.backend === "vllm" || llm.backend === "q27");
+  const isVllm = llm != null && (llm.backend === "vllm" || llm.backend === "q27" || llm.backend === "radiance" || llm.backend === "flare");
   // FreeToken reports KV use, active requests and a TTFT mean in /v1/stats; the tiles below are null-gated.
   const isFreeToken = llm?.backend === "freetoken";
-  const showEngineTiles = isVllm || isFreeToken;
+  const showEngineTiles = isVllm || isFreeToken || isStrata;
   const kvTone =
     llm?.kvCacheUsage == null
       ? ""
@@ -607,7 +608,7 @@ export function LlmPanel({
       {showSettings ? (
         <div className="sp-stack">
           <p className="sp-hint">
-            HTTP port of the LLM server on this Spark (vLLM / llama.cpp / sglang / ds4 / EXL3 / TensorFold / OpenAI-compatible gateway).
+            HTTP port of the LLM server on this Spark (vLLM / llama.cpp / sglang / ds4 / EXL3 / TensorFold / Radiance / OpenAI-compatible gateway).
           </p>
           <label className="sp-field">
             <span className="eyebrow">Port</span>
@@ -755,14 +756,39 @@ export function LlmPanel({
           </div>
 
           <div className="sp-decode">
-            <div className="sp-metric">
+            <div
+              className="sp-metric"
+              title={
+                isStrata
+                  ? "Live sliding-window decode rate. When that window is unavailable, the active-slot mean sums each active slot’s generated tokens divided by its elapsed time since first token; it excludes prefill time."
+                  : undefined
+              }
+            >
               <span className="eyebrow">Decode</span>
               <div className="big-num sp-big-lg">
-                {fmtTps(generationTps)}
-                <small>tok/s</small>
+                {isStrata && llm?.decodeActive && generationTps <= 0 ? (
+                  <>
+                    <span className="ov-tps__dots" aria-hidden />
+                    <small>decoding</small>
+                  </>
+                ) : (
+                  <>
+                    {fmtTps(generationTps)}
+                    <small>tok/s</small>
+                  </>
+                )}
               </div>
               <TrendLine data={genHistory} height={44} color="var(--color-accent)" />
               {genAvg != null && <span className="sp-avg mono">avg {fmtAvg(genAvg)}</span>}
+              {isStrata && llm?.generationTpsSource === "slot-mean" && <span className="sp-avg">active-slot mean</span>}
+              {llm?.perStreamTps != null && (
+                <span
+                  className="sp-avg mono"
+                  title="Average decode throughput of one running stream (1 / mean seconds per output token). Only engines that publish a per-token latency histogram report it."
+                >
+                  {fmtTps(llm.perStreamTps)} tok/s per stream
+                </span>
+              )}
               {idleNote && (
                 <span className="sp-avg" data-llm-idle>
                   {idleNote}
@@ -771,14 +797,18 @@ export function LlmPanel({
             </div>
             <div
               className="sp-metric"
-              title="Prompt tokens/sec taken in during the last poll window — cache-served + computed. Opening a saved chat in the UI does not hit the GPU; send (or regenerate) so the history is sent as the prompt. Cached prefill does little GPU work; uncached prefill is what builds KV cache."
+              title={
+                isStrata
+                  ? "Engine-reported mean for computed/new prompt tokens. It may be from an earlier prefill and is not an aggregate across slots."
+                  : "Prompt tokens/sec taken in during the last poll window — cache-served + computed. Opening a saved chat in the UI does not hit the GPU; send (or regenerate) so the history is sent as the prompt. Cached prefill does little GPU work; uncached prefill is what builds KV cache."
+              }
             >
               <span className="eyebrow">Prefill</span>
               <div className="big-num sp-big-lg">
                 {llm?.prefillActive && prefillTps <= 0 ? (
                   <>
                     <span className="ov-tps__dots" aria-hidden />
-                    <small title="A prompt is being processed. The engine reports its speed only when the request finishes.">prefilling</small>
+                    <small title={isStrata ? "A prompt is being processed; no current prefill rate is available." : "A prompt is being processed. The engine reports its speed only when the request finishes."}>prefilling</small>
                   </>
                 ) : (
                   <>
@@ -789,6 +819,15 @@ export function LlmPanel({
               </div>
               <TrendLine data={prefillHistory} height={44} color="var(--color-info)" />
               {prefillAvg != null && <span className="sp-avg mono">avg {fmtAvg(prefillAvg)}</span>}
+              {isStrata && prefillTps > 0 && <span className="sp-avg">last reported mean</span>}
+              {llm?.perStreamPrefillTps != null && (
+                <span
+                  className="sp-avg mono"
+                  title="Effective prefill rate of one request: prompt tokens ÷ prefill seconds over the finished window. The prompt counter includes prefix-cache tokens (this surface has no cached counter), so it is an effective speed, not raw GPU speed. The engine publishes prefill seconds only when a request finishes, so it is held between completions."
+                >
+                  {fmtTps(llm.perStreamPrefillTps)} tok/s per request — effective (incl. cached tokens)
+                </span>
+              )}
             </div>
           </div>
           {showPrefillSplit && (
@@ -846,7 +885,7 @@ export function LlmPanel({
             <div className="sp-tile">
               <b>
                 {(llm?.slotsTotal ?? 0) > 0
-                  ? `${llm?.slotsActive ?? 0} / ${llm?.slotsTotal ?? 0}`
+                  ? `${llm?.slotsActive ?? "?"} / ${llm?.slotsTotal ?? 0}`
                   : (llm?.slotsActive ?? 0) > 0
                     ? `${llm?.slotsActive} running`
                     : "—"}

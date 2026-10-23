@@ -18,10 +18,14 @@ config/llm-token-totals.json.*
 config/token-rollup.json
 config/power-rollup.json
 config.backup-*/
+config/model-prices.json
+config/model-prices.json.*
 config/fleet-energy.json
 config/fleet-energy-monthly.json*
 config/fleet-energy-monthly.unreadable-*
 config/.fleet-energy.json.*.tmp
+config/alerts.json
+config/alerts.json.*
 config/gpu-memory.json
 config/gpu-memory.json.*
 config/bench-exports/
@@ -29,8 +33,6 @@ config/bench-exports/
 .DS_Store
 docs/
 mockups/
-AGENTS.md
-CODEBASE.md
 PLAN.md
 tetris.html
 .zcode/
@@ -43,6 +45,9 @@ config/llm-launchers.json
 config/tool-eval-runs.json
 config/tool-eval-results/
 config/gpu-history.json
+config/gpu-history-long.json
+config/metrics-history.json
+config/metrics-history.json.corrupt-*
 config/fleet-energy.scope-*.json
 config/*.tmp
 config/*.json.*.tmp

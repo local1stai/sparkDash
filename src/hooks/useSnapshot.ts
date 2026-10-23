@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { FleetFanStatus, FleetPowerStatus, SparkSnapshot, WsSnapshot } from "../api/types";
+import type { AlertInstance, FleetFanStatus, FleetPowerStatus, SparkSnapshot, WsSnapshot } from "../api/types";
 import { ingestFanSnapshot, ingestSnapshots } from "./metricsStore";
 import { initialActiveId } from "../constants";
 import { fetchAuthStatus, getToken, onTokenChange, reportAuthRequired } from "../api/authToken";
@@ -25,6 +25,8 @@ export function useSnapshot() {
   const [snapshotGeneratedAt, setSnapshotGeneratedAt] = useState<number | null>(null);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [refreshInterval, setRefreshInterval] = useState<number | null>(null);
+  /** The server's firing alerts; null while it sends none (alert notifications off). */
+  const [serverAlerts, setServerAlerts] = useState<AlertInstance[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(initialActiveId);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -90,6 +92,7 @@ export function useSnapshot() {
           setRefreshInterval(
             Number.isFinite(msg.refreshInterval) ? Number(msg.refreshInterval) : null
           );
+          setServerAlerts(Array.isArray(msg.alerts?.active) ? msg.alerts.active : null);
           setSnapshotError(null);
         } else {
           setSnapshotError("The server sent an invalid telemetry payload.");
@@ -160,5 +163,6 @@ export function useSnapshot() {
     snapshotGeneratedAt,
     snapshotError,
     refreshInterval,
+    serverAlerts,
   };
 }

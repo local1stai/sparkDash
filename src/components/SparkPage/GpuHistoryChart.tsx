@@ -120,10 +120,14 @@ export function GpuHistoryChart({
   const indices = useMemo(() => (gpu?.gpus && gpu.gpus.length > 1 ? gpu.gpus.map((d) => d.index) : []), [gpu?.gpus]);
   const multi = indices.length > 1;
   const indexKey = indices.join(",");
+  const deviceLabels = new Map((gpu?.gpus ?? []).map((d) => [
+    d.index,
+    d.vendor === "amd" ? `AMD GPU ${d.physicalIndex ?? d.index}` : `GPU ${d.physicalIndex ?? d.index}`,
+  ]));
   const [viewRaw, setViewRaw] = useState<string | null>(() => readPref(VIEW_KEY));
   const [metric, setMetric] = useState<GpuMetric>(() => parseGpuMetric(readPref(METRIC_KEY)));
   const view: GpuView = multi ? parseGpuView(viewRaw, indices) : "combined";
-  const specs = useMemo(() => chartSeriesSpecs(view, metric, indices), [view, metric, indexKey]);
+  const specs = useMemo(() => chartSeriesSpecs(view, metric, indices, deviceLabels), [view, metric, indexKey, gpu?.gpus]);
 
   const lines = useMemo<Line[]>(() => {
     // The aggregate series change on every sample and on backfill, which is also when the per-card ones do.
@@ -162,7 +166,7 @@ export function GpuHistoryChart({
     setMetric(m);
     writePref(METRIC_KEY, m);
   };
-  const viewOptions: Array<[GpuView, string]> = [["combined", "Combined"], ["all", "All GPUs"], ...indices.map((i): [GpuView, string] => [i, `GPU ${i}`])];
+  const viewOptions: Array<[GpuView, string]> = [["combined", "Combined"], ["all", "All GPUs"], ...indices.map((i): [GpuView, string] => [i, deviceLabels.get(i) ?? `GPU ${i}`])];
   const controls = multi ? (
     <div className="sp-chart__controls">
       <div className="seg" role="group" aria-label="GPUs to plot">
@@ -230,6 +234,9 @@ export function GpuHistoryChart({
         aria-label="GPU utilization, power and temperature history"
       >
         <defs>
+          <clipPath id={`${gradId}-plot`}>
+            <rect x={PAD.l} y={PAD.t} width={iw} height={ih} />
+          </clipPath>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stopColor="var(--color-accent)" stopOpacity="0.28" />
             <stop offset="1" stopColor="var(--color-accent)" stopOpacity="0" />
@@ -259,30 +266,32 @@ export function GpuHistoryChart({
         <text x={width - PAD.r} y={HEIGHT - 4} textAnchor="end">
           now
         </text>
-        {hasData &&
-          lines.map((l) =>
-            l.segs
-              .filter((s) => s.length > 1)
-              .map((seg, si) => {
-                const path = d(seg);
-                const last = seg[seg.length - 1];
-                const first = seg[0];
-                return (
-                  <g key={`${l.key}-${si}`}>
-                    {l.fill && (
-                      <path
-                        d={`${path} L${xOf(last.at).toFixed(1)} ${yOf(0)} L${xOf(first.at).toFixed(1)} ${yOf(0)} Z`}
-                        fill={`url(#${gradId})`}
-                      />
-                    )}
-                    <path d={path} fill="none" stroke={l.color} strokeWidth="1.8" strokeLinejoin="round" />
-                    {si === l.segs.filter((s) => s.length > 1).length - 1 && (
-                      <circle cx={xOf(last.at)} cy={yOf(last.value)} r="3.5" fill={l.color} />
-                    )}
-                  </g>
-                );
-              })
-          )}
+        <g clipPath={`url(#${gradId}-plot)`}>
+          {hasData &&
+            lines.map((l) =>
+              l.segs
+                .filter((s) => s.length > 1)
+                .map((seg, si) => {
+                  const path = d(seg);
+                  const last = seg[seg.length - 1];
+                  const first = seg[0];
+                  return (
+                    <g key={`${l.key}-${si}`}>
+                      {l.fill && (
+                        <path
+                          d={`${path} L${xOf(last.at).toFixed(1)} ${yOf(0)} L${xOf(first.at).toFixed(1)} ${yOf(0)} Z`}
+                          fill={`url(#${gradId})`}
+                        />
+                      )}
+                      <path d={path} fill="none" stroke={l.color} strokeWidth="1.8" strokeLinejoin="round" />
+                      {si === l.segs.filter((s) => s.length > 1).length - 1 && (
+                        <circle cx={xOf(last.at)} cy={yOf(last.value)} r="3.5" fill={l.color} />
+                      )}
+                    </g>
+                  );
+                })
+            )}
+        </g>
       </svg>
       {legend}
     </div>
