@@ -205,7 +205,12 @@ export interface GpuThrottle {
   detail: string;
 }
 
-/** GET /api/sparks/:id/gpu-clock: the GPU clock cap (`nvidia-smi -lgc`) and its boot service. */
+/** What keeps a cap across reboots on a unit: the systemd unit where passwordless
+ *  sudo reaches a root shell, the user's `@reboot` cron line where it does not, or
+ *  nothing at all. */
+export type GpuClockPersistKind = "unit" | "cron" | "none";
+
+/** GET /api/sparks/:id/gpu-clock: the GPU clock cap (`nvidia-smi -lgc`) and its boot hook. */
 export type GpuClockStatus =
   | { supported: false; reason?: string }
   | {
@@ -218,6 +223,8 @@ export type GpuClockStatus =
       passwordAllowed?: boolean;
       /** "root" runs directly, "yes" = passwordless sudo works, "no" = it does not. */
       sudo: "root" | "yes" | "no";
+      /** What "keep after reboot" would install on this unit. */
+      persistKind: GpuClockPersistKind;
       service: {
         installed: boolean;
         /** "min,max" the service applies at boot. */
@@ -225,7 +232,21 @@ export type GpuClockStatus =
         enabled: string | null;
         active: string | null;
       };
+      /** The fallback where the boot service cannot be installed. */
+      cron: {
+        installed: boolean;
+        /** "min,max" the @reboot job applies at boot. */
+        clocks: string | null;
+        /** The job ran at this boot and could not re-apply the cap. */
+        failed: boolean;
+      };
     };
+
+/** POST /api/sparks/gpu-clock-all: per-unit outcome of a fleet-wide cap or reset. */
+export type FleetGpuClockResult =
+  | { id: string; ok: true; capMHz: number | null; persistKind: GpuClockPersistKind }
+  | { id: string; ok: true; supported: false; reason: string }
+  | { id: string; ok: false; error: string };
 
 /** One health finding for a Spark (server rules in server/health/HealthEvaluator.js). */
 export interface HealthFinding {
@@ -427,7 +448,11 @@ export interface LlmMetrics {
   /** The LLM port this snapshot came from — lets the UI match panels to probes by port, not array position. */
   port?: number;
   available: boolean;
-  backend: "vllm" | "llama.cpp" | "sglang" | "lmstudio" | "ollama" | "ds4" | "exl3" | "q27" | "tensorfold" | "freetoken" | "radiance" | "strata" | "flare" | null;
+  /** False when the endpoint answered but this poll's stats could not be read: its rates are unknown, not zero. */
+  measurementValid?: boolean;
+  /** Why the last poll's stats could not be read; null while they can. */
+  measurementError?: string | null;
+  backend: "vllm" | "llama.cpp" | "sglang" | "lmstudio" | "ollama" | "ds4" | "exl3" | "q27" | "tensorfold" | "freetoken" | "radiance" | "strata" | "flare" | "locals" | "splash" | null;
   /** How the monitor reaches the engine: its own address, or an SSH forward when only SSH gets there. */
   via?: "direct" | "ssh-tunnel";
   modelId: string | null;
@@ -715,6 +740,8 @@ export interface SparkSnapshot {
   hermes?: HermesStatus;
   hardware: HardwareInfo;
   metrics: SparkMetrics;
+  /** Harness sessions by LLM port. Absent until the occupancy poller has a projection. */
+  conversations?: Record<string, ConversationRow[]>;
 }
 
 // ─── WebSocket envelope ───────────────────────────────────
@@ -966,7 +993,7 @@ export interface Settings {
   /** Overview search field + status filter. Off by default. */
   showOverviewSearch: boolean;
   /** Overview fleet fan & power strip (env-gated features; hides the strip). On by default. */
-  showFleetCard: boolean;
+  showFleetCard?: boolean;
   showLlmTokenTotals: boolean;
   /** Overview KPI tiles and the Recent activity card; each can be hidden. All on by default. */
   showKpiDecode?: boolean;
@@ -998,6 +1025,77 @@ export interface Settings {
   metricsHistory?: boolean;
   /** Alert notifications (Settings → Alerts). Off by default; while off nothing is evaluated or sent. */
   alertsEnabled?: boolean;
+  /** Publish the activity feed and per-unit readings to an MQTT broker. Off by default. */
+  mqttEnabled: boolean;
+  /** Broker URL: mqtt://, mqtts://, ws:// or wss://. */
+  mqttUrl: string;
+  /** Broker username, if any; the password comes from SPARKDASH_MQTT_PASSWORD. */
+  mqttUsername: string;
+  /** Topic root for everything published (events, status, metrics). */
+  mqttTopicPrefix: string;
+  /**
+   * Hide harness sessions older than this. Finite: 1 minute through 14 days.
+   * Missing or out of range becomes 12 hours.
+   */
+  occupancyMaxAgeMs: number;
+}
+
+export type OccupancyBadge = "unknown" | "generating" | "stalled";
+
+export interface ConversationRow {
+  id: string;
+  source: string;
+  handle: string;
+  badge: OccupancyBadge;
+  port: number;
+  routingProvenance?: string;
+  stale?: boolean;
+  lastUsedAt?: number;
+  agent?: string;
+  contextUsed?: number | null;
+  contextWindow?: number | null;
+  contextApprox?: boolean;
+}
+
+export interface OccupancyRoute {
+  harness: string;
+  sparkId: string;
+  port: number;
+  cwdPrefix?: string;
+}
+
+export interface OccupancyHelper {
+  id: string;
+  label: string;
+  url: string;
+  enabled: boolean;
+  harnesses: string[];
+  routes: OccupancyRoute[];
+  hasToken: boolean;
+}
+
+export interface OccupancyHelperInput {
+  id?: string;
+  label?: string;
+  url: string;
+  enabled?: boolean;
+  harnesses: string[];
+  routes: OccupancyRoute[];
+  token?: string;
+}
+
+export interface OccupancyAdapterSummary {
+  coverage: "supported" | "unsupported" | "unavailable" | "partial" | string;
+  stale: boolean;
+  rows: number;
+  error: string | null;
+}
+
+export interface OccupancyCheck {
+  ok: boolean;
+  observedAt: number;
+  adapters: Record<string, OccupancyAdapterSummary>;
+  rowCount: number;
 }
 
 // ─── Unit history (GET /api/sparks/:id/history) ──────────
@@ -1090,6 +1188,8 @@ export interface DecodeBenchConfig {
   temperature?: number;
   /** Thinking on (default). Older runs have none: they ran with it off. */
   thinking?: boolean;
+  /** Prompt tokens each stream carries before it decodes (deep-context start). Absent: empty context. */
+  contextTokens?: number;
   /** On-demand remote host (Tailscale HTTPS, etc.). */
   host?: string;
   tls?: boolean;
@@ -1107,6 +1207,10 @@ export interface DecodeBenchStreamResult {
   completionTokens: number;
   prefillTps: number;
   prefillTokens: number;
+  /** Prompt tokens the server served from its prefix cache. */
+  cachedTokens?: number;
+  /** Deep-context runs: did this stream decode from the prefilled KV? */
+  contextCache?: "cached" | "partial" | "uncached" | "unknown";
   totalMs: number;
   error: string | null;
   /** Exact prompt used for this stream (debug). */
@@ -1164,6 +1268,12 @@ export interface DecodeBenchLevelResult {
   totalCompletionTokens: number;
   durationMs: number;
   error: string | null;
+  /** Deep-context runs: the prefix cache did not serve every stream's context, so tok/s is not clean. */
+  warning?: string;
+  /** Deep-context runs: prompt tokens per stream and the time spent prefilling them before the wave. */
+  contextTokens?: number;
+  contextPrefillMs?: number;
+  contextCache?: { cached: number; partial: number; uncached: number; unknown: number };
   streams: DecodeBenchStreamResult[];
   model: string | null;
   /** ~1 Hz GPU/VRAM/power samples during the wave (debug). */
@@ -1187,6 +1297,8 @@ export interface DecodeBenchProgress {
   message: string;
   /** Generation tok/s measured from the streams of the running wave; null before the first token. */
   liveTps?: number | null;
+  /** Deep-context runs: streams prefilled so far for the current level. */
+  prefill?: { done: number; total: number } | null;
 }
 
 export interface DecodeBenchJob {
@@ -1211,6 +1323,8 @@ export interface DecodeBenchDefaults {
   defaultPromptType: DecodeBenchPromptType;
   defaultTemperature?: number;
   defaultThinking?: boolean;
+  minContextTokens?: number;
+  maxContextTokens?: number;
 }
 
 export interface DecodeBenchListResponse {
@@ -1232,6 +1346,8 @@ export interface StartDecodeBenchRequest {
   temperature?: number;
   /** Default true. */
   thinking?: boolean;
+  /** Prefill every stream with this many prompt tokens before the decode wave. 0 or omitted: start empty. */
+  contextTokens?: number;
   /** On-demand remote LLM host (hostname or URL). Skips this Spark's LAN/SSH path. */
   host?: string;
   tls?: boolean;

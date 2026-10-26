@@ -41,7 +41,7 @@ export function computeFleetTotals(
     }
     t.memUsedMb += s.metrics?.gpu?.vram?.used ?? s.metrics?.unifiedMemory?.used ?? 0;
     if (Array.isArray(s.metrics?.llm)) {
-      for (const llm of s.metrics.llm) if (llm.available) t.decodeTps += llm.generationTps || 0;
+      for (const llm of s.metrics.llm) if (llm.available && llm.measurementValid !== false) t.decodeTps += llm.generationTps || 0;
     }
   }
   t.meteredPowerNodes = metered;

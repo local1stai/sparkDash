@@ -438,7 +438,7 @@ export function OverviewPage({
           })}
         </div>
         <FleetKpis
-          sparks={visibleSparks}
+          sparks={sparks}
           snapshotKey={sparks}
           show={kpis}
           wallWatts={power ? (id) => power.plugs?.[id]?.watts ?? null : undefined}
