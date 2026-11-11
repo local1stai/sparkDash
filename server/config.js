@@ -54,6 +54,28 @@ const FAN_STATUS_URL = (process.env.FAN_STATUS_URL || "").trim();
 /** Optional fleet power meter base URL (e.g. a per-Spark smart-plug daemon). Empty = feature hidden. */
 const POWER_METER_URL = (process.env.POWER_METER_URL || "").trim();
 
+// ─── Model discovery ("Discover on this Spark") ──────────
+/**
+ * Folders the discovery scan walks on the dashboard's own Spark (find, depth 3)
+ * looking for launchable model folders. Read ONCE at import; the strings are
+ * spliced UNQUOTED into a fixed find template, so they must pass the allowlist
+ * in models/discovery.js (which is why they are config-only, never request input).
+ */
+const MODEL_DISCOVERY_DEFAULT_ROOTS = Object.freeze(["$HOME", "$HOME/llms", "$HOME/models", "$HOME/Qwen*"]);
+/** Extra roots from MODEL_DISCOVERY_ROOTS (colon-separated), appended to the defaults. */
+function parseModelDiscoveryRoots(raw) {
+  return String(raw || "")
+    .split(":")
+    .map((r) => r.trim())
+    .filter(Boolean);
+}
+const MODEL_DISCOVERY_ROOTS = Object.freeze([
+  ...MODEL_DISCOVERY_DEFAULT_ROOTS,
+  ...parseModelDiscoveryRoots(process.env.MODEL_DISCOVERY_ROOTS),
+]);
+/** Per-command cap for the fixed discovery templates on the local host. */
+const MODEL_DISCOVERY_TIMEOUT_MS = parseInt(process.env.MODEL_DISCOVERY_TIMEOUT_MS || "8000", 10);
+
 // ─── LLM / Comfy probe timeouts ──────────────────────────
 const LLM_PROBE_TIMEOUT_MS = 3000;
 /**
@@ -93,7 +115,7 @@ const POLL_INTERVAL_FAN = parseInt(process.env.POLL_INTERVAL_FAN || "5000", 10);
 const POLL_INTERVAL_POWER = parseInt(process.env.POLL_INTERVAL_POWER || "5000", 10);
 // Tailnet membership changes slowly; each poll is an SSH round-trip.
 const POLL_INTERVAL_TAILSCALE = parseInt(process.env.POLL_INTERVAL_TAILSCALE || "30000", 10);
-// Kernel journal scan for NV_ERR_NO_MEMORY — not on the 2s GPU loop.
+// Incremental kernel error reads after backfill, independent of the GPU poll interval.
 const POLL_INTERVAL_NVERR = parseInt(process.env.POLL_INTERVAL_NVERR || "60000", 10);
 // dmon -c 1 -d 1 blocks ~1s; default 2s avoids stacking with in-flight guards
 const POLL_INTERVAL_BANDWIDTH = parseInt(process.env.POLL_INTERVAL_BANDWIDTH || "2000", 10);
@@ -239,6 +261,9 @@ export {
   OCCUPANCY_HELPERS_JSON_PATH,
   MODEL_PRICES_JSON_PATH,
   MODEL_PRICES_FETCH,
+  MODEL_DISCOVERY_DEFAULT_ROOTS,
+  MODEL_DISCOVERY_ROOTS,
+  MODEL_DISCOVERY_TIMEOUT_MS,
   LLM_PROBE_TIMEOUT_MS,
   COMFY_PROBE_TIMEOUT_MS,
   FAN_PROBE_TIMEOUT_MS,

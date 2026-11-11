@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import type { SparkSnapshot } from "../../api/types";
 import { fetchLlmTokenTotals } from "../../api/llmTokenClient";
 import { formatTokensCompact } from "../../shared/tokenFormat";
@@ -65,7 +66,6 @@ export function FleetKpis({
   sparks,
   snapshotKey = sparks,
   show,
-  wallWatts,
 }: {
   sparks: SparkSnapshot[];
   /**
@@ -74,16 +74,13 @@ export function FleetKpis({
    */
   snapshotKey?: unknown;
   show?: KpiVisibility;
-  /** Smart-plug wall reading per node id (POWER_METER_URL fleets); null = estimate. */
-  wallWatts?: (sparkId: string) => number | null;
 }) {
+  const { t } = useTranslation("overview");
   const showDecode = show?.decode ?? true;
   const showPower = show?.power ?? true;
   const showMemory = show?.memory ?? true;
   const showTokens = show?.tokens ?? true;
-  // Memo deps include the resolver identity only via sparks changes; OverviewPage
-  // passes a stable closure over the live power snapshot each render.
-  const totals = useMemo(() => computeFleetTotals(sparks, wallWatts), [sparks, wallWatts]);
+  const totals = useMemo(() => computeFleetTotals(sparks), [sparks]);
   const totalsRef = useRef(totals);
   totalsRef.current = totals;
   const [trends, setTrends] = useState<Trends>(persisted);
@@ -94,7 +91,7 @@ export function FleetKpis({
     setTrends((prev) => {
       const next = {
         decode: pushRolling(prev.decode, t.decodeTps),
-        power: pushRolling(prev.power, t.powerW),
+        power: t.powerW == null ? prev.power : pushRolling(prev.power, t.powerW),
         mem: pushRolling(prev.mem, t.memUsedMb / 1024),
       };
       persisted = next;
@@ -134,7 +131,7 @@ export function FleetKpis({
     <div className="ov-kpis" data-count={count}>
       {showDecode ? (
         <Kpi
-          label="Fleet decode"
+          label={t("kpis.fleetDecode")}
           value={totals.decodeTps.toFixed(1)}
           unit="tok/s"
           trend={trends.decode}
@@ -143,21 +140,16 @@ export function FleetKpis({
       ) : null}
       {showPower ? (
         <Kpi
-          label="Fleet power"
-          value={totals.powerW.toFixed(0)}
+          label={t("kpis.fleetPower")}
+          value={totals.powerW == null ? "—" : totals.powerW.toFixed(0)}
           unit="W"
           trend={trends.power}
           color="var(--color-violet)"
-          foot={
-            totals.meteredPowerNodes
-              ? `wall-metered on ${totals.meteredPowerNodes}/${totals.online} node${totals.online === 1 ? "" : "s"}`
-              : undefined
-          }
         />
       ) : null}
       {showMemory ? (
         <Kpi
-          label="Memory in use"
+          label={t("kpis.memoryInUse")}
           value={memGb.toFixed(0)}
           unit="GB"
           right={memPct != null ? <span className="ov-delta mono">{memPct}%</span> : undefined}
@@ -167,18 +159,18 @@ export function FleetKpis({
       ) : null}
       {!showTokens ? null : tokens && tokensCompact ? (
         <Kpi
-          label="Tokens in last 24 hours"
+          label={t("kpis.tokensLast24Hours")}
           value={tokensCompact[1]}
           unit={tokensCompact[2] || "tok"}
-          foot={`generated · ${formatTokensCompact(tokens.prompt)} prefill`}
+          foot={t("kpis.generatedPrefill", { prompt: formatTokensCompact(tokens.prompt) })}
           color="var(--color-success)"
         />
       ) : (
         <Kpi
-          label="Online"
+          label={t("kpis.online")}
           value={String(totals.online)}
-          unit={`/ ${totals.total} units`}
-          foot={totals.online === totals.total ? "all units reachable" : `${totals.total - totals.online} offline`}
+          unit={t("kpis.ofUnits", { count: totals.total })}
+          foot={totals.online === totals.total ? t("kpis.allUnitsReachable") : t("kpis.offline", { count: totals.total - totals.online })}
           color="var(--color-success)"
         />
       )}

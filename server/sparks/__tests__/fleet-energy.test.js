@@ -169,7 +169,6 @@ function monitorWithCollectionState({
 
 const APPROVED_RESPONSE_FIELDS = [
   "estimated",
-  "meteredNodeIds",
   "membershipChanged",
   "restartRequired",
   "trackedNodeIds",
@@ -197,8 +196,6 @@ function assertNullableFiniteNumber(value) {
 function assertFleetEnergyResponseContract(response) {
   assert.deepEqual(Object.keys(response).sort(), [...APPROVED_RESPONSE_FIELDS].sort());
   assert.equal(typeof response.estimated, "boolean");
-  assert.equal(Array.isArray(response.meteredNodeIds), true);
-  assert.equal(response.meteredNodeIds.every((id) => typeof id === "string"), true);
   assert.equal(typeof response.membershipChanged, "boolean");
   assert.equal(typeof response.restartRequired, "boolean");
   assert.equal(Array.isArray(response.trackedNodeIds), true);

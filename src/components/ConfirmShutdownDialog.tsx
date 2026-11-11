@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { useModalPresence } from "../hooks/useModalPresence";
 import { useOverlayClose } from "../hooks/useOverlayClose";
 import { useFocusTrap } from "../hooks/useFocusTrap";
@@ -47,6 +48,7 @@ export function ConfirmShutdownDialog({
   requirePhrase = CONFIRM_PHRASE,
   warnings,
 }: ConfirmShutdownDialogProps) {
+  const { t } = useTranslation("overview");
   const [phrase, setPhrase] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -112,64 +114,64 @@ export function ConfirmShutdownDialog({
         <div className={`modal-sheet__header${typed ? " modal-sheet__header--danger" : ""}`}>
           <PowerOffIcon className="h-4 w-4 shrink-0" />
           <h2 className="modal-sheet__title" id={titleId}>
-            {typed ? `Danger zone — ${title}` : title}
+            {typed ? t("shutdown.dangerZone", { title }) : title}
           </h2>
         </div>
 
         <div className="modal-sheet__body modal-sheet__stack">
           <p className="modal-sheet__lead">{description}</p>
 
-          {typed && (
+{typed && (
             <>
-              <div className="danger-box" role="alert">
-                <b>
-                  {warnings && warnings.length > 0
-                    ? "This stops running work."
-                    : "This powers off hardware."}
-                </b>
-                {warnings && warnings.length > 0 ? (
-                  <ul>
-                    {warnings.map((w, i) => (
-                      <li key={`${i}-${w}`}>{w}</li>
-                    ))}
-                  </ul>
-                ) : null}
-                <span>Running containers and sessions will stop. The host powers off after a graceful stop.</span>
-              </div>
+                      <div className="danger-box" role="alert">
+              <b>
+                {warnings && warnings.length > 0
+                  ? t("shutdown.stopsWork")
+                  : t("shutdown.powersOffHardware")}
+              </b>
+              {warnings && warnings.length > 0 ? (
+                <ul>
+                  {warnings.map((w, i) => (
+                    <li key={`${i}-${w}`}>{w}</li>
+                  ))}
+                </ul>
+              ) : null}
+              <span>{t("shutdown.runningWorkStops")}</span>
+            </div>
 
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={acknowledged}
-                  disabled={submitting}
-                  onChange={(e) => setAcknowledged(e.target.checked)}
-                />
-                <span>I understand this cannot be undone from the dashboard.</span>
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={acknowledged}
+                disabled={submitting}
+                onChange={(e) => setAcknowledged(e.target.checked)}
+              />
+              <span>{t("shutdown.acknowledgment")}</span>
+            </label>
+
+            <div className="field">
+              <label htmlFor={`${titleId}-phrase`}>
+                {t("shutdown.typeToConfirmPrefix")} <b className="mono">{CONFIRM_PHRASE}</b> {t("shutdown.typeToConfirmSuffix")}
               </label>
-
-              <div className="field">
-                <label htmlFor={`${titleId}-phrase`}>
-                  Type <b className="mono">{requirePhrase}</b> to confirm
-                </label>
-                <input
-                  id={`${titleId}-phrase`}
-                  ref={inputRef}
-                  type="text"
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={phrase}
-                  disabled={submitting}
-                  onChange={(e) => setPhrase(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      void handleConfirm();
-                    }
-                  }}
-                  className="field-input field-input--mono"
-                  placeholder={requirePhrase}
-                />
-              </div>
+              <input
+                id={`${titleId}-phrase`}
+                ref={inputRef}
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                value={phrase}
+                disabled={submitting}
+                onChange={(e) => setPhrase(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleConfirm();
+                  }
+                }}
+                className="field-input field-input--mono"
+                placeholder={CONFIRM_PHRASE}
+              />
+            </div>
             </>
           )}
         </div>
@@ -177,7 +179,7 @@ export function ConfirmShutdownDialog({
         <div className="modal-sheet__footer">
           <div className="modal-sheet__footer-actions">
             <button type="button" onClick={onClose} disabled={submitting} className="btn btn--ghost">
-              Cancel
+              {t("shutdown.cancel")}
             </button>
             <button
               type="button"
@@ -186,7 +188,7 @@ export function ConfirmShutdownDialog({
               className={`btn ${typed ? "btn--danger" : "btn--warning"}`}
             >
               <PowerOffIcon className="h-3.5 w-3.5" />
-              {submitting ? (typed ? "Shutting down…" : "Working…") : confirmLabel}
+              {submitting ? (typed ? t("shutdown.submitting") : "Working…") : confirmLabel}
             </button>
           </div>
         </div>
