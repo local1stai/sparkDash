@@ -12,13 +12,11 @@ function tapoFetch(body, { status = 200 } = {}) {
 }
 
 const STATUS = {
-  online: true,
-  fetchedAt: 1731312000000,
-  totalWatts: 412.5,
-  plugs: {
-    "gx10-95": { watts: 48.2, relayOn: true, ok: true },
-    "gx10-96": { watts: null, relayOn: true, ok: false, error: "handshake failed" },
-  },
+  ts: 1731312000000,
+  plugs: [
+    { spark: "gx10-95", watts: 48.2, ts: 1731312000000, relay_on: true, ok: true },
+    { spark: "gx10-96", watts: null, ts: 1731312000000, relay_on: true, ok: false, error: "handshake failed" },
+  ],
 };
 
 test("TapoProvider: validate accepts a loopback url and rejects junk", () => {
@@ -68,8 +66,12 @@ test("readPower: negative or non-numeric watts read as null, never fabricated", 
     { url: "http://127.0.0.1:5570" },
     {
       fetchFn: tapoFetch({
-        fetchedAt: 1,
-        plugs: { a: { watts: -3 }, b: { watts: "lots" }, c: {} },
+        ts: 1,
+        plugs: [
+          { spark: "a", watts: -3, ts: 1 },
+          { spark: "b", watts: "lots", ts: 1 },
+          { spark: "c", ts: 1 },
+        ],
       }),
     }
   );

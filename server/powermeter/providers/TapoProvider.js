@@ -19,9 +19,11 @@ const MAX_STATUS_BYTES = 64 * 1024;
 
 /**
  * Read the daemon's /status into per-plug readings. Exported for tests.
+ * The daemon serves `plugs` as a list; every item carries its `spark` id,
+ * its own `ts` and the live `watts` (see /home/admin/tapoctl).
  * @param {string} url
  * @param {{ fetchFn?: typeof fetch, timeoutMs?: number }} [opts]
- * @returns {Promise<{ fetchedAt: number | null, plugs: Record<string, { watts: number | null, error?: string }> }>}
+ * @returns {Promise<{ fetchedAt: number | null, plugs: Record<string, { watts: number | null, atMs: number | null, error?: string }> }>}
  */
 export async function readTapoStatus(url, { fetchFn = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   const res = await fetchFn(`${url.replace(/\/+$/, "")}/status`, {
@@ -32,18 +34,22 @@ export async function readTapoStatus(url, { fetchFn = fetch, timeoutMs = DEFAULT
   const text = await res.text();
   if (text.length > MAX_STATUS_BYTES) throw new Error("tapoctl status body over the size cap");
   const json = JSON.parse(text);
-  if (!json || typeof json !== "object" || typeof json.plugs !== "object") {
-    throw new Error("tapoctl status is missing the plugs map");
+  if (!json || typeof json !== "object" || !Array.isArray(json.plugs)) {
+    throw new Error("tapoctl status is missing the plugs list");
   }
+  const fetchedAt = Number(json.ts) || null;
   const plugs = {};
-  for (const [id, plug] of Object.entries(json.plugs)) {
-    const watts = plug?.watts;
-    plugs[id] = {
+  for (const plug of json.plugs) {
+    if (!plug || typeof plug.spark !== "string" || !plug.spark) continue;
+    const watts = plug.watts;
+    const atMs = Number(plug.ts) || fetchedAt;
+    plugs[plug.spark] = {
       watts: Number.isFinite(watts) && watts >= 0 ? watts : null,
-      ...(plug?.error ? { error: String(plug.error) } : {}),
+      atMs,
+      ...(plug.error ? { error: String(plug.error) } : {}),
     };
   }
-  return { fetchedAt: Number(json.fetchedAt) || null, plugs };
+  return { fetchedAt, plugs };
 }
 
 export class TapoProvider extends PowerMeterProvider {
@@ -91,15 +97,14 @@ export class TapoProvider extends PowerMeterProvider {
    * @param {import("./PowerMeterProvider.js").ReadOptions} [_options]
    */
   async readPower(channels, _options = {}) {
-    const { fetchedAt, plugs } = await readTapoStatus(this.url, { fetchFn: this.fetchFn });
-    const atMs = fetchedAt ?? Date.now();
+    const { plugs } = await readTapoStatus(this.url, { fetchFn: this.fetchFn });
     const out = new Map();
     for (const channel of channels) {
       const plug = plugs[channel];
       if (!plug) {
-        out.set(channel, { watts: null, atMs, error: "no such plug in tapoctl config" });
+        out.set(channel, { watts: null, atMs: Date.now(), error: "no such plug in tapoctl config" });
       } else {
-        out.set(channel, { watts: plug.watts, atMs, ...(plug.error ? { error: plug.error } : {}) });
+        out.set(channel, { watts: plug.watts, atMs: plug.atMs ?? Date.now(), ...(plug.error ? { error: plug.error } : {}) });
       }
     }
     return out;
